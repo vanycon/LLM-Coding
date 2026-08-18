@@ -103,3 +103,42 @@ BEFORE DELETE ON audit_log
 BEGIN
     SELECT RAISE(ABORT, 'audit_log ist unveraenderlich (ADR-009): DELETE nicht erlaubt');
 END;
+
+-- Pruefprotokoll (UC-04, BR-RUP-03..06): schliesst eine Ausleihe ab.
+-- zielzustand wird hier als tatsaechlich gewaehlter Folgezustand
+-- gespeichert (verfuegbar/wartungsfaellig/ausgemustert) -- nicht die vom
+-- Wart eingegebene Rohauswahl (die kennt nur verfuegbar/ausgemustert,
+-- wartungsfaellig wird abgeleitet, BR-WAR-02).
+CREATE TABLE IF NOT EXISTS pruefprotokoll (
+    pruefprotokoll_id TEXT PRIMARY KEY,
+    ausleihe_id TEXT NOT NULL REFERENCES ausleihe (ausleihe_id),
+    kautionsabzug_cent INTEGER NOT NULL CHECK (kautionsabzug_cent >= 0),
+    zielzustand TEXT NOT NULL CHECK (
+        zielzustand IN ('verfuegbar', 'wartungsfaellig', 'ausgemustert')
+    ),
+    erstellt_am TEXT NOT NULL
+);
+
+-- MaengelEintrag (BR-RUP-05): strukturierte Maengelliste je Gegenstand,
+-- ueber alle Pruefprotokolle hinweg. festgestellt_in_pruefprotokoll_id
+-- ersetzt das denormalisierte Pruefprotokoll.neueMaengelIds-Feld aus dem
+-- Entity-Modell durch eine normale Fremdschluessel-Rueckbeziehung.
+CREATE TABLE IF NOT EXISTS maengel_eintrag (
+    maengel_id TEXT PRIMARY KEY,
+    gegenstand_id TEXT NOT NULL REFERENCES gegenstand (inventarnummer),
+    beschreibung TEXT NOT NULL,
+    festgestellt_in_pruefprotokoll_id TEXT NOT NULL
+        REFERENCES pruefprotokoll (pruefprotokoll_id)
+);
+
+-- Kautionsbewegung (BR-KAU-01, BR-KAU-04): 'hinterlegung' ist ein
+-- gueltiger, in dieser Codebasis aber (noch) nicht erzeugter Wert -- siehe
+-- domain/kautionsbewegung.py.
+CREATE TABLE IF NOT EXISTS kautionsbewegung (
+    bewegung_id TEXT PRIMARY KEY,
+    ausleihe_id TEXT NOT NULL REFERENCES ausleihe (ausleihe_id),
+    art TEXT NOT NULL CHECK (art IN ('hinterlegung', 'abzug', 'freigabe')),
+    betrag_cent INTEGER NOT NULL CHECK (betrag_cent >= 0),
+    zeitstempel TEXT NOT NULL,
+    ausloeser TEXT NOT NULL
+);

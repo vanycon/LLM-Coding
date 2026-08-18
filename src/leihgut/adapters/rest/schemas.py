@@ -38,3 +38,13 @@ class GegenstandAusgebenRequest(BaseModel):
 
 class GegenstandZuruecknehmenRequest(BaseModel):
     auffaelligkeiten: str | None = None
+
+
+class MangelEintragRequest(BaseModel):
+    beschreibung: str
+
+
+class PruefungAbschliessenRequest(BaseModel):
+    neueMaengel: list[MangelEintragRequest] = []
+    kautionsabzugCent: int = Field(ge=0)
+    zielzustand: Literal["verfuegbar", "ausgemustert"]
