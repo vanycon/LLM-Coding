@@ -30,3 +30,11 @@ class GegenstandAendernRequest(BaseModel):
 class EinweisungErfassenRequest(BaseModel):
     mitgliedId: str
     kategorieId: str
+
+
+class GegenstandAusgebenRequest(BaseModel):
+    mitgliedId: str
+
+
+class GegenstandZuruecknehmenRequest(BaseModel):
+    auffaelligkeiten: str | None = None

@@ -31,16 +31,22 @@ CREATE TABLE IF NOT EXISTS gegenstand (
     )
 );
 
--- Ausschnitt für Skeleton-01 / spätere ADR-007-Absicherung (EPIC-A).
+-- Ausleihe (UC-01/UC-03/UC-04/UC-06): Zustandswerte nach
+-- spec-domain-model.adoc, Abschnitt "Zustandsautomaten" (aktiv →
+-- zurueckgegeben → abgeschlossen, bzw. aktiv → abgeschlossen_verloren bei
+-- Verlust). kaution_cent ist ein Snapshot des bei der Ausgabe berechneten
+-- Betrags (BR-KAT-04) für SI-01; die Kautionsbewegungs-Ledger-Tabelle
+-- (Hinterlegung/Abzug/Freigabe) entsteht erst mit EPIC-B (BR-KAU-01/04).
 CREATE TABLE IF NOT EXISTS ausleihe (
     ausleihe_id TEXT PRIMARY KEY,
     gegenstand_id TEXT NOT NULL REFERENCES gegenstand (inventarnummer),
     mitglied_id TEXT NOT NULL,
     ausgabedatum TEXT NOT NULL,
     rueckgabefrist TEXT NOT NULL,
+    kaution_cent INTEGER NOT NULL,
     verlaengert INTEGER NOT NULL DEFAULT 0,
     zustand TEXT NOT NULL CHECK (
-        zustand IN ('aktiv', 'zurueckgenommen', 'in_pruefung', 'abgeschlossen')
+        zustand IN ('aktiv', 'zurueckgegeben', 'abgeschlossen', 'abgeschlossen_verloren')
     ),
     rueckgabe_auffaelligkeiten TEXT
 );

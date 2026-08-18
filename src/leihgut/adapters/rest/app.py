@@ -9,6 +9,9 @@ import sqlite3
 
 from fastapi import Depends, FastAPI, HTTPException
 
+from leihgut.adapters.persistence.sqlite_ausleihe_repository import (
+    SqliteAusleiheRepository,
+)
 from leihgut.adapters.persistence.sqlite_einweisung_repository import (
     SqliteEinweisungRepository,
 )
@@ -23,10 +26,23 @@ from leihgut.adapters.rest.schemas import (
     EinweisungErfassenRequest,
     GegenstandAendernRequest,
     GegenstandAnlegenRequest,
+    GegenstandAusgebenRequest,
+    GegenstandZuruecknehmenRequest,
     KategorieAendernRequest,
     KategorieAnlegenRequest,
 )
 from leihgut.adapters.system_clock import SystemClock
+from leihgut.anwendungskern.ausleihe_service import (
+    AusleiheNichtGefunden,
+    AusleihlimitErreicht,
+    BereitsZurueckgegeben,
+    EinweisungFehlt,
+    GegenstandNichtGefunden as AusgabeGegenstandNichtGefunden,
+    GegenstandNichtVerfuegbar,
+    MitgliedGesperrt,
+    gegenstand_ausgeben,
+    gegenstand_zuruecknehmen,
+)
 from leihgut.anwendungskern.einweisung_service import (
     BereitsWiderrufen,
     EinweisungBestehtBereits,
@@ -48,6 +64,7 @@ from leihgut.anwendungskern.verfuegbarkeit_service import (
     GegenstandNichtGefunden as VerfuegbarkeitNichtGefunden,
 )
 from leihgut.anwendungskern.verfuegbarkeit_service import verfuegbarkeit_pruefen
+from leihgut.domain.ausleihe import Ausleihe
 from leihgut.domain.einweisung import Einweisung
 from leihgut.domain.gegenstand import Gegenstand
 from leihgut.domain.kategorie import Kategorie
@@ -66,6 +83,19 @@ _EINWEISUNG_ABLEHNUNG_STATUS = {
     BereitsWiderrufen: (409, "BEREITS_WIDERRUFEN"),
 }
 
+_AUSGABE_ABLEHNUNG_STATUS = {
+    AusgabeGegenstandNichtGefunden: (404, "GEGENSTAND_NICHT_GEFUNDEN"),
+    GegenstandNichtVerfuegbar: (409, "GEGENSTAND_NICHT_VERFUEGBAR"),
+    MitgliedGesperrt: (409, "MITGLIED_GESPERRT"),
+    AusleihlimitErreicht: (409, "AUSLEIHLIMIT_ERREICHT"),
+    EinweisungFehlt: (409, "EINWEISUNG_FEHLT"),
+}
+
+_RUECKGABE_ABLEHNUNG_STATUS = {
+    AusleiheNichtGefunden: (404, "AUSLEIHE_NICHT_GEFUNDEN"),
+    BereitsZurueckgegeben: (409, "BEREITS_ZURUECKGEGEBEN"),
+}
+
 
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
@@ -77,6 +107,29 @@ def _einweisung_ablehnung_zu_http(ablehnung) -> HTTPException:
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
+def _ausgabe_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _AUSGABE_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _rueckgabe_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _RUECKGABE_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _ausleihe_zu_dict(ausleihe: Ausleihe) -> dict:
+    return {
+        "ausleiheId": ausleihe.ausleihe_id,
+        "gegenstandId": ausleihe.gegenstand_id,
+        "mitgliedId": ausleihe.mitglied_id,
+        "ausgabedatum": ausleihe.ausgabedatum,
+        "rueckgabefrist": ausleihe.rueckgabefrist,
+        "kautionCent": ausleihe.kaution_cent,
+        "verlaengert": ausleihe.verlaengert,
+        "zustand": ausleihe.zustand.value,
+    }
+
+
 def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     """Erzeugt die FastAPI-App mit einer festen SQLite-Verbindung.
 
@@ -86,10 +139,12 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     gegenstand_repo = SqliteGegenstandRepository(conn)
     kategorie_repo = SqliteKategorieRepository(conn)
     einweisung_repo = SqliteEinweisungRepository(conn)
+    ausleihe_repo = SqliteAusleiheRepository(conn)
     clock = clock or SystemClock()
 
     wart_erforderlich = erfordere_rolle("wart")
     lesend_erlaubt = erfordere_rolle("thekendienst", "mitglied", "wart")
+    thekendienst_erforderlich = erfordere_rolle("thekendienst")
 
     @app.get("/gegenstaende/{inventarnummer}")
     def gegenstand_verfuegbarkeit(
@@ -214,6 +269,38 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         if not isinstance(ergebnis, Einweisung):
             raise _einweisung_ablehnung_zu_http(ergebnis)
         return None
+
+    @app.post("/gegenstaende/{inventarnummer}/ausgabe", status_code=201)
+    def gegenstand_ausgeben_endpoint(
+        inventarnummer: str,
+        body: GegenstandAusgebenRequest,
+        _rolle: str = Depends(thekendienst_erforderlich),
+    ):
+        ergebnis = gegenstand_ausgeben(
+            gegenstand_repo,
+            kategorie_repo,
+            einweisung_repo,
+            ausleihe_repo,
+            clock,
+            inventarnummer,
+            body.mitgliedId,
+        )
+        if not isinstance(ergebnis, Ausleihe):
+            raise _ausgabe_ablehnung_zu_http(ergebnis)
+        return _ausleihe_zu_dict(ergebnis)
+
+    @app.post("/ausleihen/{ausleiheId}/rueckgabe")
+    def gegenstand_zuruecknehmen_endpoint(
+        ausleiheId: str,
+        body: GegenstandZuruecknehmenRequest,
+        _rolle: str = Depends(thekendienst_erforderlich),
+    ):
+        ergebnis = gegenstand_zuruecknehmen(
+            ausleihe_repo, gegenstand_repo, ausleiheId, body.auffaelligkeiten
+        )
+        if not isinstance(ergebnis, Ausleihe):
+            raise _rueckgabe_ablehnung_zu_http(ergebnis)
+        return _ausleihe_zu_dict(ergebnis)
 
     return app
 

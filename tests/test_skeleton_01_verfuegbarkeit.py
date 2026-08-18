@@ -133,9 +133,9 @@ class TestNebenlaeufigkeitAktiveAusleihe:
         conn.execute(
             "INSERT INTO ausleihe "
             "(ausleihe_id, gegenstand_id, mitglied_id, ausgabedatum, "
-            "rueckgabefrist, verlaengert, zustand) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            ("A-1", "INV-001", "M-1", "2026-08-18", "2026-09-01", 0, "aktiv"),
+            "rueckgabefrist, kaution_cent, verlaengert, zustand) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            ("A-1", "INV-001", "M-1", "2026-08-18", "2026-09-01", 1600, 0, "aktiv"),
         )
         conn.commit()
 
@@ -143,7 +143,7 @@ class TestNebenlaeufigkeitAktiveAusleihe:
             conn.execute(
                 "INSERT INTO ausleihe "
                 "(ausleihe_id, gegenstand_id, mitglied_id, ausgabedatum, "
-                "rueckgabefrist, verlaengert, zustand) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?)",
-                ("A-2", "INV-001", "M-2", "2026-08-18", "2026-09-01", 0, "aktiv"),
+                "rueckgabefrist, kaution_cent, verlaengert, zustand) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                ("A-2", "INV-001", "M-2", "2026-08-18", "2026-09-01", 1600, 0, "aktiv"),
             )
