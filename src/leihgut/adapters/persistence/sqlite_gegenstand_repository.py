@@ -26,22 +26,56 @@ def create_connection(db_path: str) -> sqlite3.Connection:
 
 
 class SqliteGegenstandRepository:
-    """Implementiert den Port ``GegenstandRepository`` (nur der für
-    Skeleton-01 benötigte Ausschnitt: Lesen nach Inventarnummer)."""
+    """Implementiert den Port ``GegenstandRepository``."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
 
     def find_by_inventarnummer(self, inventarnummer: str) -> Gegenstand | None:
         row = self._conn.execute(
-            "SELECT inventarnummer, kategorie_id, zustand FROM gegenstand "
+            "SELECT inventarnummer, kategorie_id, zustand, "
+            "wiederbeschaffungswert_cent, nutzungszaehler FROM gegenstand "
             "WHERE inventarnummer = ?",
             (inventarnummer,),
         ).fetchone()
         if row is None:
             return None
+        return self._to_domain(row)
+
+    def insert(self, gegenstand: Gegenstand) -> None:
+        self._conn.execute(
+            "INSERT INTO gegenstand "
+            "(inventarnummer, kategorie_id, wiederbeschaffungswert_cent, "
+            "nutzungszaehler, zustand) VALUES (?, ?, ?, ?, ?)",
+            (
+                gegenstand.inventarnummer,
+                gegenstand.kategorie_id,
+                gegenstand.wiederbeschaffungswert_cent,
+                gegenstand.nutzungszaehler,
+                gegenstand.zustand.value,
+            ),
+        )
+        self._conn.commit()
+
+    def update(self, gegenstand: Gegenstand) -> None:
+        self._conn.execute(
+            "UPDATE gegenstand SET wiederbeschaffungswert_cent = ?, "
+            "nutzungszaehler = ?, zustand = ? WHERE inventarnummer = ?",
+            (
+                gegenstand.wiederbeschaffungswert_cent,
+                gegenstand.nutzungszaehler,
+                gegenstand.zustand.value,
+                gegenstand.inventarnummer,
+            ),
+        )
+        self._conn.commit()
+
+    @staticmethod
+    def _to_domain(row) -> Gegenstand:
         return Gegenstand(
             inventarnummer=row[0],
             kategorie_id=row[1],
             zustand=GegenstandZustand(row[2]),
+            wiederbeschaffungswert_cent=row[3],
+            nutzungszaehler=row[4],
         )

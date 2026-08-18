@@ -72,7 +72,9 @@ class TestVerfuegbarkeitPruefenRest:
     def test_si10_gibt_200_und_zustand_zurueck(self, conn):
         client = TestClient(create_app(conn))
 
-        response = client.get("/gegenstaende/INV-001")
+        response = client.get(
+            "/gegenstaende/INV-001", headers={"X-Rolle": "mitglied"}
+        )
 
         assert response.status_code == 200
         assert response.json() == {
@@ -84,7 +86,9 @@ class TestVerfuegbarkeitPruefenRest:
     def test_si10_gibt_404_nicht_gefunden_zurueck(self, conn):
         client = TestClient(create_app(conn))
 
-        response = client.get("/gegenstaende/UNBEKANNT")
+        response = client.get(
+            "/gegenstaende/UNBEKANNT", headers={"X-Rolle": "mitglied"}
+        )
 
         assert response.status_code == 404
         assert response.json()["detail"]["fehlercode"] == "NICHT_GEFUNDEN"

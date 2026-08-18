@@ -1,9 +1,7 @@
-"""Domänenmodell: Gegenstand (UC-10 Verfügbarkeit prüfen, Ausschnitt).
+"""Domänenmodell: Gegenstand.
 
-Nur der für den Walking Skeleton (Skeleton-01, siehe
-``src/docs/implementation/backlog.adoc``) benötigte Ausschnitt. Wird in
-EPIC-D (Katalog pflegen) um Anlage- und Änderungsregeln (BR-KAT-01..04,
-siehe ``src/docs/specs/spec-domain-model.adoc``) erweitert.
+Siehe src/docs/specs/spec-domain-model.adoc, Entity-Modell und
+Validierungsregeln (BR-KAT-01..04).
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -23,8 +21,10 @@ class GegenstandZustand(str, Enum):
 
 @dataclass(frozen=True)
 class Gegenstand:
-    """Ausschnitt des Gegenstand-Aggregats für UC-10 (nur Lesezugriff)."""
+    """Gegenstand-Aggregat (spec-domain-model.adoc, Entity-Modell)."""
 
     inventarnummer: str
     kategorie_id: str
     zustand: GegenstandZustand
+    wiederbeschaffungswert_cent: int
+    nutzungszaehler: int = 0
