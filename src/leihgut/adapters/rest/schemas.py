@@ -1,4 +1,5 @@
-"""Pydantic-Schemas für die Katalogpflege-Endpunkte (SI-09)."""
+"""Pydantic-Schemas für die Katalogpflege- (SI-09) und Einweisungs-Endpunkte
+(SI-07/SI-08)."""
 from pydantic import BaseModel
 
 
@@ -24,3 +25,8 @@ class GegenstandAnlegenRequest(BaseModel):
 
 class GegenstandAendernRequest(BaseModel):
     wiederbeschaffungswertCent: int
+
+
+class EinweisungErfassenRequest(BaseModel):
+    mitgliedId: str
+    kategorieId: str

@@ -9,6 +9,9 @@ import sqlite3
 
 from fastapi import Depends, FastAPI, HTTPException
 
+from leihgut.adapters.persistence.sqlite_einweisung_repository import (
+    SqliteEinweisungRepository,
+)
 from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
     SqliteGegenstandRepository,
 )
@@ -17,10 +20,19 @@ from leihgut.adapters.persistence.sqlite_kategorie_repository import (
 )
 from leihgut.adapters.rest.rollen import erfordere_rolle
 from leihgut.adapters.rest.schemas import (
+    EinweisungErfassenRequest,
     GegenstandAendernRequest,
     GegenstandAnlegenRequest,
     KategorieAendernRequest,
     KategorieAnlegenRequest,
+)
+from leihgut.adapters.system_clock import SystemClock
+from leihgut.anwendungskern.einweisung_service import (
+    BereitsWiderrufen,
+    EinweisungBestehtBereits,
+    EinweisungNichtGefunden,
+    einweisung_erfassen,
+    einweisung_widerrufen,
 )
 from leihgut.anwendungskern.katalog_service import (
     GegenstandNichtGefunden,
@@ -36,8 +48,10 @@ from leihgut.anwendungskern.verfuegbarkeit_service import (
     GegenstandNichtGefunden as VerfuegbarkeitNichtGefunden,
 )
 from leihgut.anwendungskern.verfuegbarkeit_service import verfuegbarkeit_pruefen
+from leihgut.domain.einweisung import Einweisung
 from leihgut.domain.gegenstand import Gegenstand
 from leihgut.domain.kategorie import Kategorie
+from leihgut.ports.clock import Clock
 
 _KATALOG_ABLEHNUNG_STATUS = {
     InventarnummerVergeben: (409, "INVENTARNUMMER_VERGEBEN"),
@@ -46,17 +60,33 @@ _KATALOG_ABLEHNUNG_STATUS = {
     WertUngueltig: (422, "WERT_UNGUELTIG"),
 }
 
+_EINWEISUNG_ABLEHNUNG_STATUS = {
+    EinweisungBestehtBereits: (409, "EINWEISUNG_BESTEHT_BEREITS"),
+    EinweisungNichtGefunden: (404, "EINWEISUNG_NICHT_GEFUNDEN"),
+    BereitsWiderrufen: (409, "BEREITS_WIDERRUFEN"),
+}
+
 
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
-def create_app(conn: sqlite3.Connection) -> FastAPI:
-    """Erzeugt die FastAPI-App mit einer festen SQLite-Verbindung."""
+def _einweisung_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _EINWEISUNG_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
+    """Erzeugt die FastAPI-App mit einer festen SQLite-Verbindung.
+
+    ``clock`` ist per Default `SystemClock` (ADR-006); Tests können einen
+    Fake mit festem Datum einsetzen."""
     app = FastAPI(title="Leihgut REST-API")
     gegenstand_repo = SqliteGegenstandRepository(conn)
     kategorie_repo = SqliteKategorieRepository(conn)
+    einweisung_repo = SqliteEinweisungRepository(conn)
+    clock = clock or SystemClock()
 
     wart_erforderlich = erfordere_rolle("wart")
     lesend_erlaubt = erfordere_rolle("thekendienst", "mitglied", "wart")
@@ -159,6 +189,31 @@ def create_app(conn: sqlite3.Connection) -> FastAPI:
                 "zustand": ergebnis.zustand.value,
             }
         raise _katalog_ablehnung_zu_http(ergebnis)
+
+    @app.post("/einweisungen", status_code=201)
+    def einweisung_erfassen_endpoint(
+        body: EinweisungErfassenRequest, _rolle: str = Depends(wart_erforderlich)
+    ):
+        ergebnis = einweisung_erfassen(
+            einweisung_repo, clock, body.mitgliedId, body.kategorieId
+        )
+        if not isinstance(ergebnis, Einweisung):
+            raise _einweisung_ablehnung_zu_http(ergebnis)
+        return {
+            "einweisungId": ergebnis.einweisung_id,
+            "mitgliedId": ergebnis.mitglied_id,
+            "kategorieId": ergebnis.kategorie_id,
+            "erstelltAm": ergebnis.erstellt_am,
+        }
+
+    @app.delete("/einweisungen/{einweisungId}", status_code=204)
+    def einweisung_widerrufen_endpoint(
+        einweisungId: str, _rolle: str = Depends(wart_erforderlich)
+    ):
+        ergebnis = einweisung_widerrufen(einweisung_repo, clock, einweisungId)
+        if not isinstance(ergebnis, Einweisung):
+            raise _einweisung_ablehnung_zu_http(ergebnis)
+        return None
 
     return app
 

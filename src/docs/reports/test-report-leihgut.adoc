@@ -19,16 +19,16 @@ Business-Rule-IDs, die sie abdeckt.
 |Kennzahl |Wert
 
 |Zuletzt aktualisiert
-|2026-08-18 (nach EPIC-D)
+|2026-08-18 (nach EPIC-C)
 
 |Tests gesamt
-|34 (34 bestanden, 0 fehlgeschlagen)
+|48 (48 bestanden, 0 fehlgeschlagen)
 
 |Zeilenabdeckung (`pytest-cov`, `src/leihgut`)
-|96 % (240 Anweisungen, 9 nicht abgedeckt)
+|97 % (346 Anweisungen, 9 nicht abgedeckt)
 
 |Abgeschlossene EPICs
-|Walking Skeleton (Skeleton-01, UC-10), EPIC-D (UC-09)
+|Walking Skeleton (Skeleton-01, UC-10), EPIC-D (UC-09), EPIC-C (UC-07, UC-08)
 |===
 
 Reproduzierbar mit:
@@ -56,19 +56,25 @@ Zuordnung nach der in `08_concepts.adoc` festgelegten Teststrategie:
 immer ein Vielfaches von 100 Cent")
 
 |Service (gegen echtes SQLite `:memory:`, kein Mocking)
-|17
+|24
 |`TestVerfuegbarkeitPruefenService`, `TestKategorieAnlegen`, `TestKategorieAendern`,
-`TestGegenstandAnlegen`, `TestGegenstandWertAendern` — UC-09, UC-10
+`TestGegenstandAnlegen`, `TestGegenstandWertAendern`, `TestEinweisungErfassen`,
+`TestEinweisungWiderrufen` — UC-07, UC-08, UC-09, UC-10
 
 |Akzeptanz (Ende-zu-Ende über die REST-API)
-|5
-|`TestVerfuegbarkeitPruefenRest`, `TestKatalogRest` — SI-09, SI-10, Rollenprüfung
-(`ROLLE_NICHT_BERECHTIGT`)
+|11
+|`TestVerfuegbarkeitPruefenRest`, `TestKatalogRest`, `TestEinweisungRest` — SI-07, SI-08,
+SI-09, SI-10, Rollenprüfung (`ROLLE_NICHT_BERECHTIGT`)
 
 |Datenbank-Constraint-Nachweis (ADR-Verifikation)
-|3
-|`TestAuditLogUnveraenderlichkeit` (ADR-009), `TestNebenlaeufigkeitAktiveAusleihe` (ADR-007) —
-Nachweis, dass der DB-Mechanismus wirklich greift, nicht nur dokumentiert ist
+|4
+|`TestAuditLogUnveraenderlichkeit` (ADR-009), `TestNebenlaeufigkeitAktiveAusleihe` (ADR-007),
+`TestEinweisungUniqueIndex` (BR-EIN-01) — Nachweis, dass der DB-Mechanismus wirklich greift,
+nicht nur dokumentiert ist
+
+|Sonstige (Adapter-Smoke-Test)
+|1
+|`TestSystemClock` — ADR-006, prüft die Produktionsimplementierung des `Clock`-Ports
 |===
 
 NOTE: Der Nebenläufigkeitstest zu ADR-007 prüft bisher nur den Datenbank-Constraint selbst
@@ -97,8 +103,8 @@ Mehr-Thread/Mehr-Prozess-Test gegen die Anwendungsdienst-Ebene entsteht erst mit
 |EPIC-C: Einweisung
 |UC-07, UC-08
 |BR-EIN-01..03, BR-AUS-04 (Ablehnungsteil)
-|—
-|⏳ offen (nächstes EPIC)
+|14 (`tests/test_epic_c_einweisung.py`)
+|✅ grün
 
 |EPIC-A: Ausleihe-Kernprozess
 |UC-01..03
@@ -112,29 +118,41 @@ Regeln lassen sich laut `katalog-pflegen.feature` erst durch eine laufende Ausle
 bzw. eine abgeschlossene Prüfung (UC-04) beobachten und werden dort nachgezogen
 (`src/leihgut/anwendungskern/katalog_service.py`, Docstring von `kategorie_aendern`).
 
+BR-AUS-04 (Ausgabe-Ablehnung bei fehlender/widerrufener Einweisung) ist in EPIC-C nur zur
+Hälfte abgedeckt: getestet ist, dass eine widerrufene Einweisung tatsächlich als ungültig gilt
+(`Einweisung.ist_gueltig()`, `find_gueltige` liefert `None`). Die eigentliche Ausgabe-Ablehnung
+entsteht erst mit dem Ausgabe-Anwendungsdienst in EPIC-A und wird dort Ende-zu-Ende getestet
+(`einweisung-widerrufen.feature`, Szenario "Nach Widerruf wird die Ausgabe … abgelehnt").
+
 == Coverage je Modul
 
 [source]
 ----
 Name                                                               Stmts   Miss  Cover   Missing
 ------------------------------------------------------------------------------------------------
-src/leihgut/adapters/rest/app.py                                      52      9    83%   100, 108-123, 151-161
+src/leihgut/adapters/rest/app.py                                      75      9    88%   130, 138-153, 181-191
+src/leihgut/anwendungskern/einweisung_service.py                      31      0   100%
 src/leihgut/anwendungskern/katalog_service.py                         67      0   100%
 src/leihgut/anwendungskern/verfuegbarkeit_service.py                  11      0   100%
+src/leihgut/domain/einweisung.py                                      10      0   100%
 src/leihgut/domain/gegenstand.py                                      16      0   100%
 src/leihgut/domain/kategorie.py                                        8      0   100%
-src/leihgut/domain/kaution.py                                           7      0   100%
+src/leihgut/domain/kaution.py                                          7      0   100%
+src/leihgut/adapters/persistence/sqlite_einweisung_repository.py      24      0   100%
 src/leihgut/adapters/persistence/sqlite_gegenstand_repository.py      27      0   100%
 src/leihgut/adapters/persistence/sqlite_kategorie_repository.py       19      0   100%
+src/leihgut/adapters/system_clock.py                                   5      0   100%
+src/leihgut/ports/clock.py                                              3      0   100%
+src/leihgut/ports/einweisung_repository.py                             7      0   100%
 ------------------------------------------------------------------------------------------------
-TOTAL                                                                240      9    96%
+TOTAL                                                                346      9    97%
 ----
 
 Die neun nicht abgedeckten Zeilen in `app.py` sind die Fehlerpfade der beiden
 `PUT`-Endpunkte (`kategorie_aendern_endpoint`, `gegenstand_aendern_endpoint`) für Kombinationen
 aus Ablehnungsarten, die die Service-Tests bereits isoliert abdecken (`katalog_service.py`
 selbst steht bei 100 %) — auf REST-Ebene aber noch nicht jede einzelne Ablehnungsart einmal
-durchlaufen wurde. Kein Blocker für EPIC-D, aber als Nachtrag vorgemerkt.
+durchlaufen wurde. Kein Blocker, aber als Nachtrag vorgemerkt.
 
 == Offene Punkte
 
