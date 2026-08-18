@@ -27,6 +27,7 @@ inputFiles = [
         //[file: 'arc42-template.adoc',    formats: ['html','pdf']],
 	[file: 'arc42/arc42.adoc', formats: ['html','pdf']],
 	[file: 'reports/atam-review-leihgut.adoc', formats: ['html','pdf']],
+	[file: 'reports/test-report-leihgut.adoc', formats: ['html','pdf']],
 	/** inputFiles **/
 ]
 
