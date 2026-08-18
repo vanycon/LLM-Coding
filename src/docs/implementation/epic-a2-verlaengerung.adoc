@@ -1,0 +1,17 @@
+= EPIC-A2: Verlängerung
+:toc:
+
+Komfortfunktion, blockiert nichts anderes — kann nach dem Kernprozess nachgezogen werden.
+
+== User Story A2.1 — Ausleihe verlängern (UC-02)
+
+Als *Thekendienst* möchte ich eine bestehende Ausleihe verlängern können, damit ein Mitglied
+einen Gegenstand länger behalten kann, sofern keine Vormerkung eines anderen Mitglieds
+entgegensteht.
+
+* Referenz: UC-02 (`spec-use-cases.adoc`).
+* Akzeptanzkriterien: `ausleihe-verlaengern.feature` (`spec-acceptance-criteria.adoc`).
+* Priorität: *Should*.
+* Abhängigkeit: benötigt EPIC-A (UC-01) und, für den Ablehnungspfad "Vormerkung eines
+  anderen Mitglieds", EPIC-E (UC-11) — kann technisch vor EPIC-E begonnen werden, der
+  Ablehnungspfad ist aber erst mit EPIC-E vollständig testbar.

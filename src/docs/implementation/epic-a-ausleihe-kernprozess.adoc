@@ -1,0 +1,39 @@
+= EPIC-A: Ausleihe-Kernprozess
+:toc:
+
+Der eigentliche Kernnutzen des Systems (PRD, Erfolgskriterium "Ausleihvorgang unter 30
+Sekunden"). Benötigt EPIC-D (Katalog) und EPIC-C (Einweisung) als Vorbedingung.
+
+== User Story A1 — Gegenstand ausgeben (UC-01)
+
+Als *Thekendienst* möchte ich einen Gegenstand an ein Mitglied ausgeben können, damit das
+Mitglied ihn nutzen kann, sofern alle Ausgabebedingungen erfüllt sind.
+
+* Referenz: UC-01 (`spec-use-cases.adoc`), BR-AUS-01, BR-AUS-02, BR-AUS-04, BR-AUS-05,
+  BR-AUS-06, BR-KAU-02 (`spec-domain-model.adoc`).
+* Akzeptanzkriterien: `gegenstand-ausgeben.feature` (`spec-acceptance-criteria.adoc`) —
+  deckt auch die Ablehnungspfade ab (Sperre, Wartungsfälligkeit, fehlende Einweisung).
+* Priorität: *Must*.
+* Nebenläufigkeit: diese Story ist der Ort, an dem ADR-007
+  (`09_architecture_decisions.adoc`, `BEGIN IMMEDIATE` + partieller Unique-Index) umgesetzt
+  wird — der Nebenläufigkeits-Testfall aus `08_concepts.adoc` (Testtabelle) gehört zur
+  Definition of Done dieser Story, nicht zu einer separaten technischen Aufgabe.
+* Abhängigkeit: benötigt EPIC-D (Gegenstand muss existieren) und EPIC-C (BR-AUS-04).
+
+== User Story A2 — Gegenstand zurücknehmen (UC-03)
+
+Als *Thekendienst* möchte ich einen zurückgegebenen Gegenstand im System als zurückgenommen
+erfassen können, damit er für die Prüfung durch den Wart (EPIC-B) und für neue Ausleihen
+sichtbar wird.
+
+* Referenz: UC-03 (`spec-use-cases.adoc`).
+* Akzeptanzkriterien: `gegenstand-zuruecknehmen.feature`.
+* Priorität: *Must*.
+* Abgrenzung: Diese Story erfasst nur die Rücknahme selbst; die fachliche Prüfung (Zustand,
+  Kaution, Reservierungsvergabe) ist bewusst EPIC-B (UC-04), nicht Teil dieser Story — sonst
+  wäre sie nicht klein genug (INVEST, "Small").
+
+== Reihenfolge
+
+A1 vor A2 (ohne Ausgabe keine Rücknahme). Beide vor EPIC-B (Prüfung setzt eine
+zurückgenommene Ausleihe voraus).

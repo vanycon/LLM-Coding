@@ -263,6 +263,23 @@ a|
 * Web-Oberfläche
 |===
 
+=== Ausblick: Release 2 (Kandidat, außerhalb dieses Backlogs)
+
+Web-Oberfläche bleibt für Release 1 explizit Out of Scope (siehe Tabelle oben). Für ein
+mögliches Release 2 ist folgender Ausbau vorgemerkt, aber *nicht* Teil dieser Spezifikation
+und Architektur, solange er nicht eigens durchgeklärt und dokumentiert wurde:
+
+* Ein Kiosk-Frontend am selben Thekenrechner (zeitlich abwechselnd mit dem Thekendienst
+  genutzt, kein zusätzliches Gerät, keine Netzwerk-Erweiterung), über das Mitglieder direkt
+  den Katalog einsehen und eigene Ausleihen/Vormerkungen einsehen können (rein lesend).
+* Das führt eine neue Nutzungsart der bereits als Primary Actor in UC-10 und UC-11 geführten
+  Rolle "Mitglied" ein: Bisher agiert das Mitglied nur über den Thekendienst als Mittler; ein
+  Kiosk würde ihm einen eigenen, direkten Kanal geben.
+* Vor Umsetzung zu klären: Mitglieds-Identifikation am Kiosk (kein Passwort vorgesehen, aber
+  eine Auswahl "wer bin ich" nötig, um "eigene Ausleihen" zu filtern), Auswirkung auf das
+  Bedrohungsmodell (ein weiterer Adapter, siehe TD-003, `08_concepts.adoc`), und ob die
+  bestehende Nicht-Authentifizierungs-Randbedingung dafür ausreicht.
+
 == Erfolgskriterien
 
 [cols="3,2"]

@@ -1,0 +1,79 @@
+= LLM-Coding: Leihgut — Werkzeugverleih einer Bibliothek der Dinge
+:toc: left
+:toclevels: 2
+:icons: font
+
+Dieses Repository ist eine Programmierübung im Bereich *Agentic Coding*.
+Ausgangspunkt ist ein fachliches Product Requirements Document (PRD), aus dem heraus
+Spezifikation, Architektur und Implementierung schrittweise mit Unterstützung eines
+KI-Coding-Agenten entstehen sollen.
+
+== Worum es geht
+
+Der Verein "Bibliothek der Dinge" verleiht Werkzeug und Geräte an seine Mitglieder —
+Bohrhammer, Beamer, Lastenrad, Kettensäge, Nähmaschine und vieles mehr.
+Rund 400 Gegenstände, 800 Mitglieder, geöffnet dienstags und samstags.
+
+Heute läuft das über ein Ringbuch und eine Kaution in bar.
+Dabei geht regelmäßig etwas schief: Kautionen werden falsch ausgezahlt, wartungsfällige
+Geräte werden trotzdem ausgegeben, und Vormerkungen werden nicht eingehalten, weil ein
+anderes Mitglied den Gegenstand zwischenzeitlich verlängert hat.
+
+Diese Übung entwickelt ein System, das der Theke jederzeit sagt, ob ein Gegenstand
+herausgegeben werden darf, jede Kautionsbewegung nachvollziehbar macht, wartungsfällige
+Geräte zurückhält und Vormerkungen zuverlässig einhält.
+
+== Warum das mehr ist als eine Bücherei
+
+Auf den ersten Blick sieht eine Bibliothek der Dinge wie eine klassische Bücherei aus —
+bis zu dem Punkt, an dem sie es nicht mehr ist:
+
+* Gegenstände verschleißen durch Nutzung und müssen nach einer festen Zahl von Ausleihen
+  gewartet werden, bevor sie wieder verfügbar sind.
+* Eine Rückgabe beendet eine Ausleihe nicht. Sie geht in die Prüfung durch den Werkstattwart,
+  und erst dessen Prüfprotokoll schließt den Vorgang ab.
+* Die Kaution ist kein Preis, sondern ein hinterlegter Betrag, der bei sauberer Rückgabe
+  vollständig zurückgeht. Der Verein verdient daran nichts.
+* Manche Geräte dürfen nur an Mitglieder mit dokumentierter Einweisung ausgegeben werden.
+  Die Einweisung hängt an der Person, nicht am Gegenstand.
+
+Die vollständige fachliche Abgrenzung, alle Geschäftsregeln, Qualitätsziele und den Umfang
+von Release 1 beschreibt das PRD, siehe <<Dokumentation>>.
+
+== Personas
+
+Karim, Thekendienst:: Ehrenamtlich im Einsatz, will in Sekunden wissen, ob er einen
+Gegenstand herausgeben darf, ohne die Kaution im Kopf auszurechnen.
+Sabine, Mitglied:: Will vorab sehen, ob ein Gegenstand frei ist, und ihn vormerken können.
+Rolf, Werkstattwart:: Prüft, repariert, mustert aus und entscheidet über Kautionsabzüge.
+
+== Rahmenbedingungen
+
+* Eine REST-API deckt alle Anwendungsfälle ab, zusätzlich eine CLI für die Aufgaben des Warts.
+  Es gibt keine Web-Oberfläche — ohne UI greifen Compiler und Testsuite als Fehlerkorrektur
+  voll, visuelle Konsistenz ließe sich nicht automatisch prüfen.
+* Sprache, Framework und Persistenz sind frei wählbar.
+* Das System läuft als ein einzelner, lokal startbarer Prozess ohne externe Dienste.
+* Rollen werden über einen Header bzw. ein CLI-Flag mitgegeben und nicht geprüft;
+  ein echtes Login ist ausdrücklich nicht Teil des Systems.
+* Das aktuelle Datum wird über eine austauschbare Quelle gelesen, damit Fristen testbar bleiben.
+
+== Definition of Done
+
+Ein Increment gilt als fertig, wenn:
+
+* alle Tests grün sind,
+* jeder Test seine Use-Case-ID nennt,
+* jede Geschäftsregel aus dem PRD durch mindestens ein Gherkin-Szenario abgedeckt ist,
+* Spezifikation und Architekturdokumentation den Stand des Codes wiedergeben,
+* getroffene Architekturentscheidungen als ADR vorliegen,
+* der Feature-Branch gemergt oder ein Pull Request offen ist.
+
+== Dokumentation
+
+Das fachliche Anforderungsdokument liegt unter link:src/docs/specs/prd.adoc[`src/docs/specs/prd.adoc`]
+und ist die verbindliche Quelle für Problem, Ziele, Domäne, Geschäftsregeln, Qualitätsziele,
+Rahmenbedingungen, Release-Umfang und Glossar.
+
+Weitere Dokumentation (Spezifikation, Architektur, ADRs) entsteht im Verlauf der Übung unterhalb
+von `src/docs/`.

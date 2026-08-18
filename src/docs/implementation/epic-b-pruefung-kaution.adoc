@@ -1,0 +1,27 @@
+= EPIC-B: Prüfung & Kaution
+:toc:
+
+Trägt Qualitätsziel 2 (Korrektheit der Kaution) — laut PRD-Qualitätszielen die höchste
+fachliche Priorität nach Sicherheit. Ohne diesen EPIC bleibt jede Ausleihe formal offen.
+
+== User Story B1 — Prüfung abschließen (UC-04)
+
+Als *Wart* möchte ich einen zurückgenommenen Gegenstand prüfen und den Prüfabschluss im
+System erfassen, damit Kaution korrekt gebucht, der Gegenstand-Zustand aktualisiert und eine
+etwaige Reservierung vergeben wird — alles in einem konsistenten Schritt.
+
+* Referenz: UC-04 (`spec-use-cases.adoc`).
+* Akzeptanzkriterien: `pruefung-abschliessen.feature` (`spec-acceptance-criteria.adoc`).
+* Priorität: *Must*.
+* Transaktionale Konsistenz (ADR aus `04_solution_strategy.adoc`, "Korrektheit der Kaution")
+  ist Teil der Definition of Done: Kaution buchen, Zustandswechsel, Reservierung vergeben und
+  Audit-Eintrag schreiben laufen in *einer* SQLite-Transaktion — kein Zwischenzustand.
+* Kautionsrundung: BR-KAU-02/BR-KAT-04 (ganze Euro, siehe Fix in `spec-domain-model.adoc`)
+  ist mit einem Property-Test über einen Wertebereich abzudecken, nicht nur Beispielwerten
+  (PRD, "Definition of Done").
+* Abhängigkeit: benötigt EPIC-A (eine zurückgenommene Ausleihe muss existieren).
+
+== Reihenfolge
+
+Einziger Story dieses EPICs; nach EPIC-A, vor EPIC-A2 und EPIC-E (beide setzen einen
+funktionierenden Prüfabschluss voraus, damit Reservierungen überhaupt vergeben werden).
