@@ -55,3 +55,8 @@ class PruefungAbschliessenRequest(BaseModel):
     neueMaengel: list[MangelEintragRequest] = []
     kautionsabzugCent: int = Field(ge=0)
     zielzustand: Literal["verfuegbar", "ausgemustert"]
+
+
+class WartungAbschliessenRequest(BaseModel):
+    inventarnummer: str
+

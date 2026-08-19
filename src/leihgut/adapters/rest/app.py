@@ -41,6 +41,7 @@ from leihgut.adapters.rest.schemas import (
     KategorieAnlegenRequest,
     PruefungAbschliessenRequest,
     VormerkungErfassenRequest,
+    WartungAbschliessenRequest,
 )
 from leihgut.adapters.system_clock import SystemClock
 from leihgut.anwendungskern.ausleihe_service import (
@@ -103,6 +104,12 @@ from leihgut.anwendungskern.verlust_service import (
     AusleiheNichtGefunden as VerlustAusleiheNichtGefunden,
     GegenstandNichtGefunden as VerlustGegenstandNichtGefunden,
     verlust_erfassen,
+)
+from leihgut.anwendungskern.wartung_service import (
+    GegenstandNichtGefunden as WartungGegenstandNichtGefunden,
+    NichtWartungsfaellig,
+    WartungErgebnis,
+    wartung_abschliessen,
 )
 from leihgut.anwendungskern.verfuegbarkeit_service import verfuegbarkeit_pruefen
 from leihgut.domain.ausleihe import Ausleihe
@@ -167,6 +174,12 @@ _VERLUST_ABLEHNUNG_STATUS = {
 }
 
 
+_WARTUNG_ABLEHNUNG_STATUS = {
+    WartungGegenstandNichtGefunden: (404, "GEGENSTAND_NICHT_GEFUNDEN"),
+    NichtWartungsfaellig: (409, "NICHT_WARTUNGSFAELLIG"),
+}
+
+
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
@@ -207,6 +220,11 @@ def _verlust_ablehnung_zu_http(ablehnung) -> HTTPException:
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
+def _wartung_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _WARTUNG_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
 def _ausleihe_zu_dict(ausleihe: Ausleihe) -> dict:
     return {
         "ausleiheId": ausleihe.ausleihe_id,
@@ -217,6 +235,14 @@ def _ausleihe_zu_dict(ausleihe: Ausleihe) -> dict:
         "kautionCent": ausleihe.kaution_cent,
         "verlaengert": ausleihe.verlaengert,
         "zustand": ausleihe.zustand.value,
+    }
+
+
+def _gegenstand_zu_dict(gegenstand: Gegenstand) -> dict:
+    return {
+        "inventarnummer": gegenstand.inventarnummer,
+        "zustand": gegenstand.zustand.value,
+        "nutzungszaehler": gegenstand.nutzungszaehler,
     }
 
 
@@ -481,6 +507,22 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         if not isinstance(ergebnis, Ausleihe):
             raise _verlust_ablehnung_zu_http(ergebnis)
         return _ausleihe_zu_dict(ergebnis)
+
+    @app.post("/wartungen", status_code=200)
+    def wartung_abschliessen_endpoint(
+        body: WartungAbschliessenRequest,
+        rolle: str = Depends(wart_erforderlich),
+    ):
+        ergebnis = wartung_abschliessen(
+            gegenstand_repo, kategorie_repo, vormerkung_repo, body.inventarnummer
+        )
+        if not isinstance(ergebnis, WartungErgebnis):
+            raise _wartung_ablehnung_zu_http(ergebnis)
+        return {
+            "inventarnummer": ergebnis.inventarnummer,
+            "zustand": ergebnis.zustand.value,
+            "nutzungszaehler": ergebnis.nutzungszaehler,
+        }
 
     return app
 
