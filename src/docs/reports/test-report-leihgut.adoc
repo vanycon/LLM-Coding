@@ -19,10 +19,10 @@ Business-Rule-IDs, die sie abdeckt.
 |Kennzahl |Wert
 
 |Zuletzt aktualisiert
-|2026-08-19 (nach EPIC-F)
+|2026-08-19 (nach EPIC-G)
 
 |Tests gesamt
-|162 (162 bestanden, 0 fehlgeschlagen)
+|172 (172 bestanden, 0 fehlgeschlagen)
 
 |Zeilenabdeckung (`pytest-cov`, `src/leihgut`)
 |98 % (~950 Anweisungen, ~25 nicht abgedeckt)
@@ -30,7 +30,7 @@ Business-Rule-IDs, die sie abdeckt.
 |Abgeschlossene EPICs
 |Walking Skeleton (Skeleton-01, UC-10), EPIC-D (UC-09), EPIC-C (UC-07, UC-08),
 EPIC-A (UC-01, UC-03), EPIC-A2 (UC-02), EPIC-B (UC-04), EPIC-E (UC-05/UC-11 Vormerkung),
-EPIC-F (UC-06 Verlust)
+EPIC-F (UC-06 Verlust), EPIC-G (UC-05 Wartung)
 |===
 
 Reproduzierbar mit:
@@ -58,10 +58,11 @@ Zuordnung nach der in `08_concepts.adoc` festgelegten Teststrategie:
 immer ein Vielfaches von 100 Cent")
 
 |Service (gegen echtes SQLite `:memory:`, kein Mocking)
-|31
+|36
 |`TestVerfuegbarkeitPruefenService`, `TestKategorieAnlegen`, `TestKategorieAendern`,
 `TestGegenstandAnlegen`, `TestGegenstandWertAendern`, `TestEinweisungErfassen`,
-`TestEinweisungWiderrufen`, `TestVerlustServiceValidierung`, `TestVerlustServiceHappyPath` — UC-07, UC-08, UC-09, UC-10, UC-06
+`TestEinweisungWiderrufen`, `TestVerlustServiceValidierung`, `TestVerlustServiceHappyPath`,
+`TestWartungServiceValidierung`, `TestWartungServiceHappyPath` — UC-05, UC-06, UC-07, UC-08, UC-09, UC-10
 
 |Unit (isoliert, IOSP-Operation) — EPIC-A
 |6
@@ -73,9 +74,9 @@ immer ein Vielfaches von 100 Cent")
 BR-RUP-01..02
 
 |Akzeptanz (Ende-zu-Ende über die REST-API)
-|24
+|29
 |`TestVerfuegbarkeitPruefenRest`, `TestKatalogRest`, `TestEinweisungRest`,
-`TestRestAusgabeUndRueckgabe`, `TestVerlustRestEndpoint` — SI-01, SI-03, SI-06, SI-07, SI-08, SI-09, SI-10, Rollenprüfung
+`TestRestAusgabeUndRueckgabe`, `TestVerlustRestEndpoint`, `TestWartungRestEndpoint` — SI-01, SI-03, SI-05, SI-06, SI-07, SI-08, SI-09, SI-10, Rollenprüfung
 (`ROLLE_NICHT_BERECHTIGT`)
 
 |Datenbank-Constraint-Nachweis (ADR-Verifikation)
@@ -153,6 +154,12 @@ NOTE: Der in `08_concepts.adoc` beschriebene Mehr-Thread-Test gegen die Anwendun
 |UC-06
 |BR-VER-01..03, BR-KAU-03..04
 |11 (`tests/test_epic_f_verlust.py`)
+|✅ grün
+
+|EPIC-G: Wartung abschließen
+|UC-05
+|BR-WAR-03, BR-VOR-03
+|10 (`tests/test_epic_g_wartung.py`)
 |✅ grün
 |===
 
