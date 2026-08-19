@@ -16,6 +16,9 @@ import pytest
 from leihgut.adapters.persistence.sqlite_ausleihe_repository import (
     SqliteAusleiheRepository,
 )
+from leihgut.adapters.persistence.sqlite_audit_log_repository import (
+    SqliteAuditLogRepository,
+)
 from leihgut.adapters.persistence.sqlite_einweisung_repository import (
     SqliteEinweisungRepository,
 )
@@ -389,14 +392,14 @@ class TestGegenstandAusgeben:
 
 class TestGegenstandZuruecknehmen:
     def test_versetzt_gegenstand_in_pruefung_ohne_ausleihe_abzuschliessen(
-        self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo,
+        self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-03 @BR-RUP-01 gegenstand-zuruecknehmen.feature:
         # "Rückgabe versetzt Gegenstand in Prüfung, ohne die Ausleihe abzuschließen"
         _gegenstand_anlegen(conn, "NM-01", "kat-nagelmesser", 10000, "ausgeliehen")
         _ausleihe_anlegen(conn, "A-8", "NM-01", "M-1", "2026-08-18", "2026-09-01")
 
-        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, "A-8")
+        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, audit_log_repo, clock, "A-8")
 
         assert isinstance(ergebnis, Ausleihe)
         assert ergebnis.zustand == AusleiheZustand.ZURUECKGEGEBEN
@@ -404,7 +407,7 @@ class TestGegenstandZuruecknehmen:
         assert gegenstand.zustand == GegenstandZustand.IN_PRUEFUNG
 
     def test_erfasst_auffaelligkeiten_als_freitext(
-        self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo,
+        self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-03 @BR-RUP-02 gegenstand-zuruecknehmen.feature:
         # "Auffälligkeiten werden als Freitext erfasst, ohne den
@@ -413,17 +416,17 @@ class TestGegenstandZuruecknehmen:
         _ausleihe_anlegen(conn, "A-9", "NM-02", "M-1", "2026-08-18", "2026-09-01")
 
         ergebnis = gegenstand_zuruecknehmen(
-            ausleihe_repo, gegenstand_repo, vormerkung_repo, "A-9", "Riss im Gehäuse"
+            ausleihe_repo, gegenstand_repo, vormerkung_repo, audit_log_repo, clock, "A-9", "Riss im Gehäuse"
         )
 
         assert ergebnis.rueckgabe_auffaelligkeiten == "Riss im Gehäuse"
         assert ergebnis.kaution_cent == 2000  # unverändert, kein Abzug hier
 
-    def test_lehnt_nicht_gefundene_ausleihe_ab(self, gegenstand_repo, ausleihe_repo, vormerkung_repo):
-        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, "X")
+    def test_lehnt_nicht_gefundene_ausleihe_ab(self, gegenstand_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock):
+        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, audit_log_repo, clock, "X")
         assert ergebnis == AusleiheNichtGefunden("X")
 
-    def test_lehnt_erneute_rueckgabe_ab(self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo):
+    def test_lehnt_erneute_rueckgabe_ab(self, conn, gegenstand_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock):
         # @UC-03 gegenstand-zuruecknehmen.feature:
         # "Erneute Rückgabe einer bereits zurückgegebenen Ausleihe wird abgelehnt"
         _gegenstand_anlegen(conn, "NM-03", "kat-nagelmesser", 10000, "in_pruefung")
@@ -432,7 +435,7 @@ class TestGegenstandZuruecknehmen:
             zustand="zurueckgegeben",
         )
 
-        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, "A-10")
+        ergebnis = gegenstand_zuruecknehmen(ausleihe_repo, gegenstand_repo, vormerkung_repo, audit_log_repo, clock, "A-10")
 
         assert ergebnis == BereitsZurueckgegeben("A-10")
 
@@ -513,7 +516,7 @@ class TestGegenstandAusgebenUebersetztNebenlaeufigkeit:
             return []
 
     def test_liefert_gegenstand_nicht_verfuegbar(
-        self, conn, gegenstand_repo, kategorie_repo, einweisung_repo, clock,
+        self, conn, gegenstand_repo, kategorie_repo, einweisung_repo, clock, audit_log_repo,
     ):
         _gegenstand_anlegen(conn, "BH-21", "kat-nagelmesser", 10000)
 
@@ -521,7 +524,7 @@ class TestGegenstandAusgebenUebersetztNebenlaeufigkeit:
             gegenstand_repo, kategorie_repo, einweisung_repo,
             self._RepoDerImmerAbgelehntWird(),
             self._FakeVormerkungRepo(),
-            clock, "BH-21", "M-1",
+            audit_log_repo, clock, "BH-21", "M-1",
         )
 
         assert ergebnis == GegenstandNichtVerfuegbar("BH-21")
@@ -656,6 +659,8 @@ class TestNebenlaeufigeAusgabe:
             kategorie_repo = SqliteKategorieRepository(conn)
             einweisung_repo = SqliteEinweisungRepository(conn)
             ausleihe_repo = SqliteAusleiheRepository(conn)
+            vormerkung_repo = SqliteVormerkungRepository(conn)
+            audit_log_repo = SqliteAuditLogRepository(conn)
             clock = FakeClock("2026-08-18T10:00:00")
             barriere.wait()
             ergebnisse[index] = gegenstand_ausgeben(

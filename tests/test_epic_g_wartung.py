@@ -22,6 +22,9 @@ from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
 from leihgut.adapters.persistence.sqlite_vormerkung_repository import (
     SqliteVormerkungRepository,
 )
+from leihgut.adapters.persistence.sqlite_audit_log_repository import (
+    SqliteAuditLogRepository,
+)
 from leihgut.adapters.rest.app import create_app
 from leihgut.anwendungskern.wartung_service import (
     wartung_abschliessen,
@@ -105,6 +108,11 @@ def kategorie_repo(conn):
 @pytest.fixture
 def vormerkung_repo(conn):
     return SqliteVormerkungRepository(conn)
+
+
+@pytest.fixture
+def audit_log_repo(conn):
+    return SqliteAuditLogRepository(conn)
 
 
 @pytest.fixture
@@ -205,12 +213,14 @@ def _vormerkung_anlegen(
 class TestWartungServiceValidierung:
     """Validierungsregeln für UC-05."""
 
-    def test_gegenstand_nicht_gefunden(self, gegenstand_repo, kategorie_repo, vormerkung_repo):
+    def test_gegenstand_nicht_gefunden(self, gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock):
         """REQ-UC05-01: Gegenstand nicht vorhanden → 404."""
         result = wartung_abschliessen(
             gegenstand_repo=gegenstand_repo,
             kategorie_repo=kategorie_repo,
             vormerkung_repo=vormerkung_repo,
+            audit_log_repo=audit_log_repo,
+            clock=clock,
             inventarnummer="NICHT_VORHANDEN",
         )
 
@@ -218,7 +228,7 @@ class TestWartungServiceValidierung:
         assert result.inventarnummer == "NICHT_VORHANDEN"
 
     def test_gegenstand_nicht_wartungsfaellig(
-        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo
+        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock
     ):
         """REQ-UC05-01: Gegenstand nicht wartungsfällig → 409."""
         inventarnummer = "INV-001"
@@ -235,6 +245,8 @@ class TestWartungServiceValidierung:
             gegenstand_repo=gegenstand_repo,
             kategorie_repo=kategorie_repo,
             vormerkung_repo=vormerkung_repo,
+            audit_log_repo=audit_log_repo,
+            clock=clock,
             inventarnummer=inventarnummer,
         )
 
@@ -251,7 +263,7 @@ class TestWartungServiceHappyPath:
     """Erfolgreiche Wartungsabschlüsse."""
 
     def test_wartung_ohne_vormerkung_verfuegbar(
-        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo
+        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock
     ):
         """Wartung abschließen ohne Vormerkung → Gegenstand verfügbar."""
         kategorie_id = "KAT-001"
@@ -269,6 +281,8 @@ class TestWartungServiceHappyPath:
             gegenstand_repo=gegenstand_repo,
             kategorie_repo=kategorie_repo,
             vormerkung_repo=vormerkung_repo,
+            audit_log_repo=audit_log_repo,
+            clock=clock,
             inventarnummer=inventarnummer,
         )
 
@@ -285,7 +299,7 @@ class TestWartungServiceHappyPath:
         assert gegenstand.nutzungszaehler == 0
 
     def test_wartung_mit_vormerkung_reserviert(
-        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo
+        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock
     ):
         """Wartung mit offener Vormerkung → Gegenstand reserviert."""
         kategorie_id = "KAT-001"
@@ -313,6 +327,8 @@ class TestWartungServiceHappyPath:
             gegenstand_repo=gegenstand_repo,
             kategorie_repo=kategorie_repo,
             vormerkung_repo=vormerkung_repo,
+            audit_log_repo=audit_log_repo,
+            clock=clock,
             inventarnummer=inventarnummer,
         )
 
@@ -329,7 +345,7 @@ class TestWartungServiceHappyPath:
         assert gegenstand.nutzungszaehler == 0
 
     def test_wartung_nur_erste_vormerkung_reserviert(
-        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo
+        self, conn, gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock
     ):
         """Bei mehreren Vormerkungen: Nur 1. (reihenfolge=1) reserviert den Gegenstand."""
         kategorie_id = "KAT-001"
@@ -355,6 +371,8 @@ class TestWartungServiceHappyPath:
             gegenstand_repo=gegenstand_repo,
             kategorie_repo=kategorie_repo,
             vormerkung_repo=vormerkung_repo,
+            audit_log_repo=audit_log_repo,
+            clock=clock,
             inventarnummer=inventarnummer,
         )
 

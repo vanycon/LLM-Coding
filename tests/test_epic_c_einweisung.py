@@ -26,6 +26,9 @@ from leihgut.adapters.persistence.sqlite_einweisung_repository import (
 from leihgut.adapters.persistence.sqlite_kategorie_repository import (
     SqliteKategorieRepository,
 )
+from leihgut.adapters.persistence.sqlite_audit_log_repository import (
+    SqliteAuditLogRepository,
+)
 from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
     create_connection,
 )
@@ -67,6 +70,11 @@ def kategorie_repo(conn):
 
 
 @pytest.fixture
+def audit_log_repo(conn):
+    return SqliteAuditLogRepository(conn)
+
+
+@pytest.fixture
 def clock():
     return FakeClock("2026-08-18T10:00:00")
 
@@ -74,10 +82,10 @@ def clock():
 # --- Service-Ebene: Einweisung erfassen (UC-07) -------------------------
 
 class TestEinweisungErfassen:
-    def test_legt_unbefristete_einweisung_an(self, einweisung_repo, kategorie_repo, clock):
+    def test_legt_unbefristete_einweisung_an(self, einweisung_repo, kategorie_repo, audit_log_repo, clock):
         # @UC-07 @BR-EIN-01 @BR-EIN-02 einweisung-erfassen.feature
         ergebnis = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, "M-7", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-7", "kat-kettensaege"
         )
 
         assert isinstance(ergebnis, Einweisung)
@@ -86,24 +94,24 @@ class TestEinweisungErfassen:
         gefunden = einweisung_repo.find_gueltige_je_mitglied_kategorie("M-7", "kat-kettensaege")
         assert gefunden == ergebnis
 
-    def test_lehnt_doppelte_einweisung_ab(self, einweisung_repo, kategorie_repo, clock):
+    def test_lehnt_doppelte_einweisung_ab(self, einweisung_repo, kategorie_repo, audit_log_repo, clock):
         # @UC-07 einweisung-erfassen.feature: "Doppelte Einweisung wird abgelehnt"
-        einweisung_erfassen(einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege")
+        einweisung_erfassen(einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-8", "kat-kettensaege")
 
         ergebnis = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-8", "kat-kettensaege"
         )
 
         assert ergebnis == DuplikatEinweisung("M-8", "kat-kettensaege")
 
-    def test_erlaubt_erneute_einweisung_nach_widerruf(self, einweisung_repo, kategorie_repo, clock):
+    def test_erlaubt_erneute_einweisung_nach_widerruf(self, einweisung_repo, kategorie_repo, audit_log_repo, clock):
         """Kein direktes Feature-Szenario, aber Konsequenz aus BR-EIN-02/03:
         eine widerrufene Einweisung blockiert keine neue Erfassung."""
-        erste = einweisung_erfassen(einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege")
-        einweisung_widerrufen(einweisung_repo, clock, erste.einweisung_id)
+        erste = einweisung_erfassen(einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-8", "kat-kettensaege")
+        einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, erste.einweisung_id)
 
         ergebnis = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-8", "kat-kettensaege"
         )
 
         assert isinstance(ergebnis, Einweisung)
@@ -148,31 +156,31 @@ class TestEinweisungUniqueIndex:
 # --- Service-Ebene: Einweisung widerrufen (UC-08) -----------------------
 
 class TestEinweisungWiderrufen:
-    def test_widerruft_gueltige_einweisung(self, einweisung_repo, kategorie_repo, clock):
+    def test_widerruft_gueltige_einweisung(self, einweisung_repo, kategorie_repo, audit_log_repo, clock):
         # @UC-08 @BR-EIN-03 einweisung-widerrufen.feature
         angelegt = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, "M-9", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-9", "kat-kettensaege"
         )
 
-        ergebnis = einweisung_widerrufen(einweisung_repo, clock, angelegt.einweisung_id)
+        ergebnis = einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, angelegt.einweisung_id)
 
         assert isinstance(ergebnis, Einweisung)
         assert not ergebnis.ist_gueltig()
         assert einweisung_repo.find_gueltige_je_mitglied_kategorie("M-9", "kat-kettensaege") is None
 
-    def test_lehnt_widerruf_unbekannter_einweisung_ab(self, einweisung_repo, clock):
-        ergebnis = einweisung_widerrufen(einweisung_repo, clock, "unbekannt")
+    def test_lehnt_widerruf_unbekannter_einweisung_ab(self, einweisung_repo, audit_log_repo, clock):
+        ergebnis = einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, "unbekannt")
 
         assert ergebnis == EinweisungNichtGefunden("unbekannt")
 
-    def test_lehnt_erneuten_widerruf_ab(self, einweisung_repo, kategorie_repo, clock):
+    def test_lehnt_erneuten_widerruf_ab(self, einweisung_repo, kategorie_repo, audit_log_repo, clock):
         # @UC-08 einweisung-widerrufen.feature: "Erneuter Widerruf ... wird abgelehnt"
         angelegt = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, "M-1", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, "M-1", "kat-kettensaege"
         )
-        einweisung_widerrufen(einweisung_repo, clock, angelegt.einweisung_id)
+        einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, angelegt.einweisung_id)
 
-        ergebnis = einweisung_widerrufen(einweisung_repo, clock, angelegt.einweisung_id)
+        ergebnis = einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, angelegt.einweisung_id)
 
         assert ergebnis == BereitsWiderrufen(angelegt.einweisung_id)
 

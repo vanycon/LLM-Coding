@@ -18,6 +18,9 @@ from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
 from leihgut.adapters.persistence.sqlite_kategorie_repository import (
     SqliteKategorieRepository,
 )
+from leihgut.adapters.persistence.sqlite_audit_log_repository import (
+    SqliteAuditLogRepository,
+)
 from leihgut.adapters.rest.app import create_app
 from leihgut.anwendungskern.ausleihe_service import gegenstand_ausgeben
 from leihgut.anwendungskern.verlust_service import (
@@ -97,19 +100,24 @@ def clock():
     return FakeClock("2026-08-19T12:00:00Z")
 
 
+@pytest.fixture
+def audit_log_repo(conn):
+    return SqliteAuditLogRepository(conn)
+
+
 class TestVerlustServiceValidierung:
     """UC-06: Validierungslogik (Isolation)."""
 
-    def test_ausleihe_nicht_gefunden(self, conn, ausleihe_repo, gegenstand_repo, clock):
+    def test_ausleihe_nicht_gefunden(self, conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock):
         """Validierung: Ausleihe existiert nicht → 404."""
         ergebnis = verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, "nichtexistent", "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, "nichtexistent", "wart"
         )
         assert isinstance(ergebnis, AusleiheNichtGefunden)
         assert ergebnis.ausleihe_id == "nichtexistent"
 
     def test_ausleihe_nicht_aktiv_zurueckgegeben(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """BR-VER-02: Nur aktive Ausleihen können verloren sein (zurueckgegeben) → 409."""
         # Setup: Gegenstand
@@ -117,7 +125,7 @@ class TestVerlustServiceValidierung:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
         assert isinstance(ausleihe_1, Exception) is False  # Should be Ausleihe
 
@@ -130,13 +138,13 @@ class TestVerlustServiceValidierung:
 
         # Test: Verlust auf zurueckgegeben → 409
         ergebnis = verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
         assert isinstance(ergebnis, AusleiheNichtAktiv)
         assert ergebnis.aktueller_zustand == "zurueckgegeben"
 
     def test_ausleihe_nicht_aktiv_abgeschlossen(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """BR-VER-02: Nur aktive Ausleihen können verloren sein (abgeschlossen) → 409."""
         # Setup: Gegenstand
@@ -144,7 +152,7 @@ class TestVerlustServiceValidierung:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
 
         # Simuliere: abgeschlossen setzen
@@ -156,7 +164,7 @@ class TestVerlustServiceValidierung:
 
         # Test: Verlust auf abgeschlossen → 409
         ergebnis = verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
         assert isinstance(ergebnis, AusleiheNichtAktiv)
         assert ergebnis.aktueller_zustand == "abgeschlossen"
@@ -166,7 +174,7 @@ class TestVerlustServiceHappyPath:
     """UC-06: Happy Path (alle Zustandsübergänge)."""
 
     def test_verlust_erfassen_ausleihe_zustand_uebergang(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """BR-VER-02: aktiv → abgeschlossen_verloren."""
         # Setup: Gegenstand
@@ -174,12 +182,12 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben (aktiv)
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
 
         # Action: Verlust erfassen
         ergebnis = verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
 
         # Assert: Rückgabe ist Ausleihe (Happy Path)
@@ -187,7 +195,7 @@ class TestVerlustServiceHappyPath:
         assert ergebnis.zustand == AusleiheZustand.ABGESCHLOSSEN_VERLOREN
 
     def test_verlust_erfassen_gegenstand_zustand_uebergang(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """BR-VER-03: Gegenstand → ausgemustert."""
         # Setup: Gegenstand
@@ -195,12 +203,12 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
 
         # Action: Verlust erfassen
         verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
 
         # Assert: Gegenstand ist ausgemustert
@@ -208,7 +216,7 @@ class TestVerlustServiceHappyPath:
         assert gegenstand.zustand == GegenstandZustand.AUSGEMUSTERT
 
     def test_verlust_erfassen_kaution_bewegung_erstellt(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """BR-KAU-03/04: Kautionsbewegung mit vollständiger Einzug."""
         # Setup: Gegenstand mit WBW 50 EUR (5000 Cent)
@@ -217,14 +225,14 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
         # Kaution sollte 1000 Cent sein (20% von 5000)
         assert ausleihe_1.kaution_cent == 1000  # BR-KAT-04: 20% auf ganze Euro
 
         # Action: Verlust erfassen
         verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
 
         # Assert: Kautionsbewegung existiert mit korrektem Betrag (100% Einzug)
@@ -240,18 +248,18 @@ class TestVerlustServiceHappyPath:
         assert ausloeser == "wart"
 
     def test_verlust_erfassen_timestamp(
-        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock
+        self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, clock, vormerkung_repo
     ):
         """Kautionsbewegung hat Timestamp."""
         # Setup
         _gegenstand_anlegen(conn, "inv-1", "Cat1", 5000)
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "inv-1", "m1"
         )
 
         # Action
         verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleihe_1.ausleihe_id, "wart"
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleihe_1.ausleihe_id, "wart"
         )
 
         # Assert: zeitstempel ist gesetzt
@@ -271,20 +279,20 @@ class TestVerlustRestEndpoint:
         app = create_app(conn, clock)
         return TestClient(app)
 
-    def _setup_ausleihe(self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock):
+    def _setup_ausleihe(self, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock):
         """Hilfsfunktion: Gegenstand + aktive Ausleihe."""
         # Gegenstand
         _gegenstand_anlegen(conn, "WT-001", "Werkzeug", 20000)
 
         # Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "WT-001", "m42"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "WT-001", "m42"
         )
         return ausleihe_1.ausleihe_id
 
-    def test_verlust_erfassen_erfolg(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock):
+    def test_verlust_erfassen_erfolg(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock):
         """POST /ausleihen/{id}/verlust mit wart-Rolle → 201."""
-        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock)
+        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock)
 
         # Action
         response = client.post(
@@ -308,10 +316,10 @@ class TestVerlustRestEndpoint:
         assert response.status_code == 404
         assert response.json()["detail"]["fehlercode"] == "AUSLEIHE_NICHT_GEFUNDEN"
 
-    def test_verlust_erfassen_ausleihe_nicht_aktiv(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock):
+    def test_verlust_erfassen_ausleihe_nicht_aktiv(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock):
         """POST /ausleihen/{id}/verlust auf nicht-aktive Ausleihe → 409."""
         # Setup + Manuelles Zustand-Update
-        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock)
+        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock)
         conn.execute(
             "UPDATE ausleihe SET zustand = ? WHERE ausleihe_id = ?",
             (AusleiheZustand.ABGESCHLOSSEN.value, ausleihe_id),
@@ -326,9 +334,9 @@ class TestVerlustRestEndpoint:
         assert response.status_code == 409
         assert response.json()["detail"]["fehlercode"] == "AUSLEIHE_NICHT_AKTIV"
 
-    def test_verlust_erfassen_rolle_erforderlich(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock):
+    def test_verlust_erfassen_rolle_erforderlich(self, client, conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock):
         """POST /ausleihen/{id}/verlust ohne wart-Rolle → 403."""
-        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, clock)
+        ausleihe_id = self._setup_ausleihe(conn, ausleihe_repo, gegenstand_repo, kategorie_repo, einweisung_repo, audit_log_repo, vormerkung_repo, clock)
 
         # Anfrage mit falscher Rolle (z.B. "mitglied" statt "wart")
         response = client.post(

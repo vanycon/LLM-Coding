@@ -374,7 +374,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         body: EinweisungErfassenRequest, _rolle: str = Depends(wart_erforderlich)
     ):
         ergebnis = einweisung_erfassen(
-            einweisung_repo, kategorie_repo, clock, body.mitgliedId, body.kategorieId
+            einweisung_repo, kategorie_repo, audit_log_repo, clock, body.mitgliedId, body.kategorieId, _rolle
         )
         if not isinstance(ergebnis, Einweisung):
             raise _einweisung_ablehnung_zu_http(ergebnis)
@@ -389,7 +389,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     def einweisung_widerrufen_endpoint(
         einweisungId: str, _rolle: str = Depends(wart_erforderlich)
     ):
-        ergebnis = einweisung_widerrufen(einweisung_repo, clock, einweisungId)
+        ergebnis = einweisung_widerrufen(einweisung_repo, audit_log_repo, clock, einweisungId, _rolle)
         if not isinstance(ergebnis, Einweisung):
             raise _einweisung_ablehnung_zu_http(ergebnis)
         return None
@@ -458,7 +458,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         _rolle: str = Depends(thekendienst_erforderlich),
     ):
         ergebnis = gegenstand_zuruecknehmen(
-            ausleihe_repo, gegenstand_repo, vormerkung_repo, ausleiheId, body.auffaelligkeiten
+            ausleihe_repo, gegenstand_repo, vormerkung_repo, audit_log_repo, clock, ausleiheId, body.auffaelligkeiten, _rolle
         )
         if not isinstance(ergebnis, Ausleihe):
             raise _rueckgabe_ablehnung_zu_http(ergebnis)
@@ -481,6 +481,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             [m.beschreibung for m in body.neueMaengel],
             body.kautionsabzugCent,
             body.zielzustand,
+            _rolle,
         )
         if not isinstance(ergebnis, PruefabschlussErgebnis):
             raise _pruefung_ablehnung_zu_http(ergebnis)
@@ -509,7 +510,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         rolle: str = Depends(wart_erforderlich),
     ):
         ergebnis = verlust_erfassen(
-            conn, ausleihe_repo, gegenstand_repo, clock, ausleiheId, rolle
+            conn, ausleihe_repo, gegenstand_repo, audit_log_repo, clock, ausleiheId, rolle
         )
         if not isinstance(ergebnis, Ausleihe):
             raise _verlust_ablehnung_zu_http(ergebnis)
@@ -521,7 +522,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         rolle: str = Depends(wart_erforderlich),
     ):
         ergebnis = wartung_abschliessen(
-            gegenstand_repo, kategorie_repo, vormerkung_repo, body.inventarnummer
+            gegenstand_repo, kategorie_repo, vormerkung_repo, audit_log_repo, clock, body.inventarnummer, rolle
         )
         if not isinstance(ergebnis, WartungErgebnis):
             raise _wartung_ablehnung_zu_http(ergebnis)

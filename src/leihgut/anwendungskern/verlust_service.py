@@ -2,13 +2,16 @@
 
 IOSP: Validierung ist von der Integration (Repository-Aufrufe) getrennt.
 """
+import json
 import sqlite3
 import uuid
 from dataclasses import dataclass
 
+from leihgut.domain.audit_log import AuditLogEintrag
 from leihgut.domain.ausleihe import Ausleihe, AusleiheZustand
 from leihgut.domain.gegenstand import Gegenstand, GegenstandZustand
 from leihgut.domain.kautionsbewegung import Kautionsbewegung, KautionsbewegungArt
+from leihgut.ports.audit_log_repository import AuditLogRepository
 from leihgut.ports.ausleihe_repository import AusleiheRepository
 from leihgut.ports.gegenstand_repository import GegenstandRepository
 from leihgut.ports.clock import Clock
@@ -46,9 +49,10 @@ def verlust_erfassen(
     conn: sqlite3.Connection,
     ausleihe_repo: AusleiheRepository,
     gegenstand_repo: GegenstandRepository,
+    audit_log_repo: AuditLogRepository,
     clock: Clock,
     ausleihe_id: str,
-    ausloeser_rolle: str,
+    rolle: str = "wart",
 ) -> Ausleihe | VerlustAblehnung:
     """Verlust erfassen (UC-06 / SI-06).
 
@@ -77,7 +81,14 @@ def verlust_erfassen(
         return GegenstandNichtGefunden(bestehende_ausleihe.gegenstand_id)
 
     # --- Aktion: Verlust erfassen (atomare Transaktion) ---
-    conn.execute("BEGIN IMMEDIATE")
+    # Starte Transaktion nur, wenn keine bereits läuft
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        started_transaction = True
+    except sqlite3.OperationalError:
+        # Transaktion läuft bereits
+        started_transaction = False
+    
     try:
         # Ausleihe abschließen als verloren
         ausleihe_verloren = Ausleihe(
@@ -117,7 +128,7 @@ def verlust_erfassen(
             art=KautionsbewegungArt.VERLUST_EINZUG,
             betrag_cent=bestehende_ausleihe.kaution_cent,  # Positive: Betrag das einbehalten wird
             zeitstempel=clock.jetzt(),
-            ausloeser=ausloeser_rolle,
+            ausloeser=rolle,
         )
         conn.execute(
             "INSERT INTO kautionsbewegung "
@@ -132,11 +143,33 @@ def verlust_erfassen(
                 kautionsbewegung.ausloeser,
             ),
         )
+        
+        # Audit-Einträge (UC-06, BR-VER-01/02)
+        audit_log_repo.insert(AuditLogEintrag(
+            zeitstempel=clock.jetzt(),
+            aggregat="Ausleihe",
+            aggregat_id=ausleihe_id,
+            ereignisart="zustand_geaendert",
+            rolle=rolle,
+            werte_vorher=json.dumps({"zustand": bestehende_ausleihe.zustand.value}),
+            werte_nachher=json.dumps({"zustand": AusleiheZustand.ABGESCHLOSSEN_VERLOREN.value}),
+        ))
+        audit_log_repo.insert(AuditLogEintrag(
+            zeitstempel=clock.jetzt(),
+            aggregat="Gegenstand",
+            aggregat_id=gegenstand.inventarnummer,
+            ereignisart="zustand_geaendert",
+            rolle=rolle,
+            werte_vorher=json.dumps({"zustand": gegenstand.zustand.value}),
+            werte_nachher=json.dumps({"zustand": GegenstandZustand.AUSGEMUSTERT.value}),
+        ))
 
-        conn.commit()
+        if started_transaction:
+            conn.commit()
         return ausleihe_verloren
 
     except Exception:
-        conn.rollback()
+        if started_transaction:
+            conn.rollback()
         raise
 

@@ -8,6 +8,10 @@ from dataclasses import dataclass
 
 from leihgut.domain.gegenstand import Gegenstand, GegenstandZustand
 from leihgut.ports.gegenstand_repository import GegenstandRepository
+import json
+from leihgut.domain.audit_log import AuditLogEintrag
+from leihgut.ports.audit_log_repository import AuditLogRepository
+from leihgut.ports.clock import Clock
 from leihgut.ports.kategorie_repository import KategorieRepository
 from leihgut.ports.vormerkung_repository import VormerkungRepository
 
@@ -59,7 +63,10 @@ def wartung_abschliessen(
     gegenstand_repo: GegenstandRepository,
     kategorie_repo: KategorieRepository,
     vormerkung_repo: VormerkungRepository,
+    audit_log_repo: AuditLogRepository,
+    clock: Clock,
     inventarnummer: str,
+    rolle: str = "wart",
 ) -> WartungErgebnis | WartungAblehnung:
     """Wartung abschließen (UC-05 / SI-06).
 
@@ -111,6 +118,17 @@ def wartung_abschliessen(
         nutzungszaehler=0,
     )
     gegenstand_repo.update(aktualisierter_gegenstand)
+    
+    # Audit-Eintrag (UC-05, BR-WAR-03)
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=clock.jetzt(),
+        aggregat="Gegenstand",
+        aggregat_id=inventarnummer,
+        ereignisart="zustand_geaendert",
+        rolle=rolle,
+        werte_vorher=json.dumps({"zustand": gegenstand.zustand.value, "nutzungszaehler": gegenstand.nutzungszaehler}),
+        werte_nachher=json.dumps({"zustand": folgezustand.value, "nutzungszaehler": 0}),
+    ))
 
     return WartungErgebnis(
         inventarnummer=inventarnummer,

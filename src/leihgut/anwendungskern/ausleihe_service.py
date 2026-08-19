@@ -252,8 +252,11 @@ def gegenstand_zuruecknehmen(
     ausleihe_repo: AusleiheRepository,
     gegenstand_repo: GegenstandRepository,
     vormerkung_repo: VormerkungRepository,
-    ausleihe_id: str,
+    audit_log_repo: AuditLogRepository | None = None,
+    clock: Clock | None = None,
+    ausleihe_id: str = "",
     auffaelligkeiten: str | None = None,
+    rolle: str = "thekendienst",
 ) -> Ausleihe | RueckgabeAblehnung:
     bestehende = ausleihe_repo.find_by_id(ausleihe_id)
     if bestehende is None:
@@ -287,5 +290,25 @@ def gegenstand_zuruecknehmen(
     
     # Nach erfolgreicher Rückgabe: Erste offene Vormerkung automatisch absagen (UC-05 Integration)
     vormerkungs_verwalten_nach_rueckgabe(vormerkung_repo, gegenstand.kategorie_id)
+    
+    # Audit-Einträge (UC-03, BR-RUP-01)
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=clock.jetzt(),
+        aggregat="Ausleihe",
+        aggregat_id=ausleihe_id,
+        ereignisart="zustand_geaendert",
+        rolle=rolle,
+        werte_vorher=json.dumps({"zustand": bestehende.zustand.value}),
+        werte_nachher=json.dumps({"zustand": AusleiheZustand.ZURUECKGEGEBEN.value}),
+    ))
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=clock.jetzt(),
+        aggregat="Gegenstand",
+        aggregat_id=gegenstand.inventarnummer,
+        ereignisart="zustand_geaendert",
+        rolle=rolle,
+        werte_vorher=json.dumps({"zustand": gegenstand.zustand.value}),
+        werte_nachher=json.dumps({"zustand": GegenstandZustand.IN_PRUEFUNG.value}),
+    ))
     
     return geaenderte_ausleihe

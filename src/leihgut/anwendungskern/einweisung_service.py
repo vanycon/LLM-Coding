@@ -2,11 +2,14 @@
 
 IOSP: Reine Validierung ist von der Integration (Repository-Aufrufe) getrennt.
 """
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import datetime
 
+from leihgut.domain.audit_log import AuditLogEintrag
 from leihgut.domain.einweisung import Einweisung
+from leihgut.ports.audit_log_repository import AuditLogRepository
 from leihgut.ports.einweisung_repository import EinweisungRepository
 from leihgut.ports.kategorie_repository import KategorieRepository
 from leihgut.ports.clock import Clock
@@ -52,9 +55,11 @@ EinweisungAblehnung = (
 def einweisung_erfassen(
     einweisung_repo: EinweisungRepository,
     kategorie_repo: KategorieRepository,
+    audit_log_repo: AuditLogRepository,
     clock: Clock,
     mitglied_id: str,
     kategorie_id: str,
+    rolle: str = "wart",
 ) -> Einweisung | EinweisungAblehnung:
     """Einweisung erfassen (UC-07 / SI-07).
 
@@ -83,6 +88,17 @@ def einweisung_erfassen(
         widerrufen_am=None,
     )
     einweisung_repo.insert(neue_einweisung)
+    
+    # Audit-Eintrag (UC-07)
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=jetzt,
+        aggregat="Einweisung",
+        aggregat_id=neue_einweisung.einweisung_id,
+        ereignisart="erstellt",
+        rolle=rolle,
+        werte_vorher=json.dumps({}),
+        werte_nachher=json.dumps({"mitglied_id": mitglied_id, "kategorie_id": kategorie_id}),
+    ))
 
     # Nach Insert: nochmal lesen, um die generierte ID zu bekommen
     gerade_angelegt = einweisung_repo.find_gueltige_je_mitglied_kategorie(
@@ -97,8 +113,10 @@ def einweisung_erfassen(
 
 def einweisung_widerrufen(
     einweisung_repo: EinweisungRepository,
+    audit_log_repo: AuditLogRepository,
     clock: Clock,
     einweisung_id: str,
+    rolle: str = "wart",
 ) -> Einweisung | EinweisungAblehnung:
     """Einweisung widerrufen (UC-08 / SI-08).
 
@@ -125,4 +143,16 @@ def einweisung_widerrufen(
         widerrufen_am=jetzt,
     )
     einweisung_repo.widerrufen(einweisung.einweisung_id, jetzt)
+    
+    # Audit-Eintrag (UC-08)
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=jetzt,
+        aggregat="Einweisung",
+        aggregat_id=einweisung_id,
+        ereignisart="widerrufen",
+        rolle=rolle,
+        werte_vorher=json.dumps({"widerrufen_am": None}),
+        werte_nachher=json.dumps({"widerrufen_am": jetzt}),
+    ))
+    
     return widerrufene
