@@ -32,8 +32,9 @@ from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
 from leihgut.adapters.rest.app import create_app
 from leihgut.anwendungskern.einweisung_service import (
     BereitsWiderrufen,
-    EinweisungBestehtBereits,
+    DuplikatEinweisung,
     EinweisungNichtGefunden,
+    KategorieNichtGefunden,
     einweisung_erfassen,
     einweisung_widerrufen,
 )
@@ -61,6 +62,11 @@ def einweisung_repo(conn):
 
 
 @pytest.fixture
+def kategorie_repo(conn):
+    return SqliteKategorieRepository(conn)
+
+
+@pytest.fixture
 def clock():
     return FakeClock("2026-08-18T10:00:00")
 
@@ -68,36 +74,36 @@ def clock():
 # --- Service-Ebene: Einweisung erfassen (UC-07) -------------------------
 
 class TestEinweisungErfassen:
-    def test_legt_unbefristete_einweisung_an(self, einweisung_repo, clock):
+    def test_legt_unbefristete_einweisung_an(self, einweisung_repo, kategorie_repo, clock):
         # @UC-07 @BR-EIN-01 @BR-EIN-02 einweisung-erfassen.feature
         ergebnis = einweisung_erfassen(
-            einweisung_repo, clock, "M-7", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, clock, "M-7", "kat-kettensaege"
         )
 
         assert isinstance(ergebnis, Einweisung)
         assert ergebnis.ist_gueltig()
         assert ergebnis.erstellt_am == "2026-08-18T10:00:00"
-        gefunden = einweisung_repo.find_gueltige("M-7", "kat-kettensaege")
+        gefunden = einweisung_repo.find_gueltige_je_mitglied_kategorie("M-7", "kat-kettensaege")
         assert gefunden == ergebnis
 
-    def test_lehnt_doppelte_einweisung_ab(self, einweisung_repo, clock):
+    def test_lehnt_doppelte_einweisung_ab(self, einweisung_repo, kategorie_repo, clock):
         # @UC-07 einweisung-erfassen.feature: "Doppelte Einweisung wird abgelehnt"
-        einweisung_erfassen(einweisung_repo, clock, "M-8", "kat-kettensaege")
+        einweisung_erfassen(einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege")
 
         ergebnis = einweisung_erfassen(
-            einweisung_repo, clock, "M-8", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege"
         )
 
-        assert ergebnis == EinweisungBestehtBereits("M-8", "kat-kettensaege")
+        assert ergebnis == DuplikatEinweisung("M-8", "kat-kettensaege")
 
-    def test_erlaubt_erneute_einweisung_nach_widerruf(self, einweisung_repo, clock):
+    def test_erlaubt_erneute_einweisung_nach_widerruf(self, einweisung_repo, kategorie_repo, clock):
         """Kein direktes Feature-Szenario, aber Konsequenz aus BR-EIN-02/03:
         eine widerrufene Einweisung blockiert keine neue Erfassung."""
-        erste = einweisung_erfassen(einweisung_repo, clock, "M-8", "kat-kettensaege")
+        erste = einweisung_erfassen(einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege")
         einweisung_widerrufen(einweisung_repo, clock, erste.einweisung_id)
 
         ergebnis = einweisung_erfassen(
-            einweisung_repo, clock, "M-8", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, clock, "M-8", "kat-kettensaege"
         )
 
         assert isinstance(ergebnis, Einweisung)
@@ -142,27 +148,27 @@ class TestEinweisungUniqueIndex:
 # --- Service-Ebene: Einweisung widerrufen (UC-08) -----------------------
 
 class TestEinweisungWiderrufen:
-    def test_widerruft_gueltige_einweisung(self, einweisung_repo, clock):
+    def test_widerruft_gueltige_einweisung(self, einweisung_repo, kategorie_repo, clock):
         # @UC-08 @BR-EIN-03 einweisung-widerrufen.feature
         angelegt = einweisung_erfassen(
-            einweisung_repo, clock, "M-9", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, clock, "M-9", "kat-kettensaege"
         )
 
         ergebnis = einweisung_widerrufen(einweisung_repo, clock, angelegt.einweisung_id)
 
         assert isinstance(ergebnis, Einweisung)
         assert not ergebnis.ist_gueltig()
-        assert einweisung_repo.find_gueltige("M-9", "kat-kettensaege") is None
+        assert einweisung_repo.find_gueltige_je_mitglied_kategorie("M-9", "kat-kettensaege") is None
 
     def test_lehnt_widerruf_unbekannter_einweisung_ab(self, einweisung_repo, clock):
         ergebnis = einweisung_widerrufen(einweisung_repo, clock, "unbekannt")
 
         assert ergebnis == EinweisungNichtGefunden("unbekannt")
 
-    def test_lehnt_erneuten_widerruf_ab(self, einweisung_repo, clock):
+    def test_lehnt_erneuten_widerruf_ab(self, einweisung_repo, kategorie_repo, clock):
         # @UC-08 einweisung-widerrufen.feature: "Erneuter Widerruf ... wird abgelehnt"
         angelegt = einweisung_erfassen(
-            einweisung_repo, clock, "M-1", "kat-kettensaege"
+            einweisung_repo, kategorie_repo, clock, "M-1", "kat-kettensaege"
         )
         einweisung_widerrufen(einweisung_repo, clock, angelegt.einweisung_id)
 
@@ -205,7 +211,7 @@ class TestEinweisungRest:
         )
 
         assert response.status_code == 409
-        assert response.json()["detail"]["fehlercode"] == "EINWEISUNG_BESTEHT_BEREITS"
+        assert response.json()["detail"]["fehlercode"] == "DUPLIKAT_EINWEISUNG"
 
     def test_delete_einweisung_gibt_204_zurueck(self, conn, clock):
         client = TestClient(create_app(conn, clock=clock))
@@ -258,6 +264,34 @@ class TestEinweisungRest:
             "/einweisungen",
             headers={"X-Rolle": "mitglied"},
             json={"mitgliedId": "M-7", "kategorieId": "kat-kettensaege"},
+        )
+
+        assert response.status_code == 403
+        assert response.json()["detail"]["fehlercode"] == "ROLLE_NICHT_BERECHTIGT"
+
+    def test_post_einweisungen_lehnt_unbekannte_kategorie_mit_404_ab(self, conn, clock):
+        # @UC-07 einweisung-erfassen.feature: "Kategorie ... existiert nicht"
+        client = TestClient(create_app(conn, clock=clock))
+
+        response = client.post(
+            "/einweisungen",
+            headers={"X-Rolle": "wart"},
+            json={"mitgliedId": "M-7", "kategorieId": "unbekannt"},
+        )
+
+        assert response.status_code == 404
+        assert response.json()["detail"]["fehlercode"] == "KATEGORIE_NICHT_GEFUNDEN"
+
+    def test_delete_einweisung_ohne_rolle_wird_abgelehnt(self, conn, clock):
+        client = TestClient(create_app(conn, clock=clock))
+        angelegt = client.post(
+            "/einweisungen",
+            headers={"X-Rolle": "wart"},
+            json={"mitgliedId": "M-9", "kategorieId": "kat-kettensaege"},
+        ).json()
+
+        response = client.delete(
+            f"/einweisungen/{angelegt['einweisungId']}", headers={"X-Rolle": "mitglied"}
         )
 
         assert response.status_code == 403

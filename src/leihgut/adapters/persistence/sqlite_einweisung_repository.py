@@ -18,7 +18,7 @@ class SqliteEinweisungRepository:
             return None
         return self._to_domain(row)
 
-    def find_gueltige(
+    def find_gueltige_je_mitglied_kategorie(
         self, mitglied_id: str, kategorie_id: str
     ) -> Einweisung | None:
         row = self._conn.execute(

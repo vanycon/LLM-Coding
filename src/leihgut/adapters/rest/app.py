@@ -67,8 +67,9 @@ from leihgut.anwendungskern.verlaengerung_service import (
 )
 from leihgut.anwendungskern.einweisung_service import (
     BereitsWiderrufen,
-    EinweisungBestehtBereits,
+    DuplikatEinweisung,
     EinweisungNichtGefunden,
+    KategorieNichtGefunden as EinweisungKategorieNichtGefunden,
     einweisung_erfassen,
     einweisung_widerrufen,
 )
@@ -100,7 +101,8 @@ _KATALOG_ABLEHNUNG_STATUS = {
 }
 
 _EINWEISUNG_ABLEHNUNG_STATUS = {
-    EinweisungBestehtBereits: (409, "EINWEISUNG_BESTEHT_BEREITS"),
+    EinweisungKategorieNichtGefunden: (404, "KATEGORIE_NICHT_GEFUNDEN"),
+    DuplikatEinweisung: (409, "DUPLIKAT_EINWEISUNG"),
     EinweisungNichtGefunden: (404, "EINWEISUNG_NICHT_GEFUNDEN"),
     BereitsWiderrufen: (409, "BEREITS_WIDERRUFEN"),
 }
@@ -298,7 +300,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         body: EinweisungErfassenRequest, _rolle: str = Depends(wart_erforderlich)
     ):
         ergebnis = einweisung_erfassen(
-            einweisung_repo, clock, body.mitgliedId, body.kategorieId
+            einweisung_repo, kategorie_repo, clock, body.mitgliedId, body.kategorieId
         )
         if not isinstance(ergebnis, Einweisung):
             raise _einweisung_ablehnung_zu_http(ergebnis)

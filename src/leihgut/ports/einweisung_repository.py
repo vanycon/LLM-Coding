@@ -9,7 +9,7 @@ class EinweisungRepository(Protocol):
         """Liefert die Einweisung oder ``None`` (SI-08)."""
         ...
 
-    def find_gueltige(
+    def find_gueltige_je_mitglied_kategorie(
         self, mitglied_id: str, kategorie_id: str
     ) -> Einweisung | None:
         """Liefert die gültige (nicht widerrufene) Einweisung für die

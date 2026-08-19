@@ -140,7 +140,7 @@ def gegenstand_ausgeben(
     heute = clock.jetzt()[:10]
     mitglied_gesperrt = any(a.ist_ueberfaellig(heute) for a in offene_ausleihen)
     einweisung_gueltig = (
-        einweisung_repo.find_gueltige(mitglied_id, gegenstand.kategorie_id)
+        einweisung_repo.find_gueltige_je_mitglied_kategorie(mitglied_id, gegenstand.kategorie_id)
         is not None
     )
 
