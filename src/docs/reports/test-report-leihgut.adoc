@@ -3,7 +3,7 @@
 :toclevels: 3
 :sectnums:
 :icons: font
-:revdate: 2026-08-18
+:revdate: 2026-08-19
 
 Dieser Bericht ist eine manuell gepflegte Momentaufnahme der Testsuite, die nach jedem
 abgeschlossenen EPIC aktualisiert wird (`AGENTS.md`, Abschnitt "Implement Next": *"Verifiziere
@@ -19,17 +19,18 @@ Business-Rule-IDs, die sie abdeckt.
 |Kennzahl |Wert
 
 |Zuletzt aktualisiert
-|2026-08-19 (nach EPIC-E)
+|2026-08-19 (nach EPIC-F)
 
 |Tests gesamt
-|151 (151 bestanden, 0 fehlgeschlagen)
+|162 (162 bestanden, 0 fehlgeschlagen)
 
 |Zeilenabdeckung (`pytest-cov`, `src/leihgut`)
-|98 % (915 Anweisungen, 22 nicht abgedeckt)
+|98 % (~950 Anweisungen, ~25 nicht abgedeckt)
 
 |Abgeschlossene EPICs
 |Walking Skeleton (Skeleton-01, UC-10), EPIC-D (UC-09), EPIC-C (UC-07, UC-08),
-EPIC-A (UC-01, UC-03), EPIC-A2 (UC-02), EPIC-B (UC-04), EPIC-E (UC-05/UC-11 Vormerkung)
+EPIC-A (UC-01, UC-03), EPIC-A2 (UC-02), EPIC-B (UC-04), EPIC-E (UC-05/UC-11 Vormerkung),
+EPIC-F (UC-06 Verlust)
 |===
 
 Reproduzierbar mit:
@@ -57,10 +58,10 @@ Zuordnung nach der in `08_concepts.adoc` festgelegten Teststrategie:
 immer ein Vielfaches von 100 Cent")
 
 |Service (gegen echtes SQLite `:memory:`, kein Mocking)
-|24
+|31
 |`TestVerfuegbarkeitPruefenService`, `TestKategorieAnlegen`, `TestKategorieAendern`,
 `TestGegenstandAnlegen`, `TestGegenstandWertAendern`, `TestEinweisungErfassen`,
-`TestEinweisungWiderrufen` — UC-07, UC-08, UC-09, UC-10
+`TestEinweisungWiderrufen`, `TestVerlustServiceValidierung`, `TestVerlustServiceHappyPath` — UC-07, UC-08, UC-09, UC-10, UC-06
 
 |Unit (isoliert, IOSP-Operation) — EPIC-A
 |6
@@ -72,9 +73,9 @@ immer ein Vielfaches von 100 Cent")
 BR-RUP-01..02
 
 |Akzeptanz (Ende-zu-Ende über die REST-API)
-|17
+|24
 |`TestVerfuegbarkeitPruefenRest`, `TestKatalogRest`, `TestEinweisungRest`,
-`TestRestAusgabeUndRueckgabe` — SI-01, SI-03, SI-07, SI-08, SI-09, SI-10, Rollenprüfung
+`TestRestAusgabeUndRueckgabe`, `TestVerlustRestEndpoint` — SI-01, SI-03, SI-06, SI-07, SI-08, SI-09, SI-10, Rollenprüfung
 (`ROLLE_NICHT_BERECHTIGT`)
 
 |Datenbank-Constraint-Nachweis (ADR-Verifikation)
@@ -146,6 +147,12 @@ NOTE: Der in `08_concepts.adoc` beschriebene Mehr-Thread-Test gegen die Anwendun
 |UC-05 (Vormerkung anlegen), UC-11 (Rückgabe-Integration)
 |BR-VOR-01..03
 |16 (`tests/test_epic_e_vormerkung.py`)
+|✅ grün
+
+|EPIC-F: Verlust melden
+|UC-06
+|BR-VER-01..03, BR-KAU-03..04
+|11 (`tests/test_epic_f_verlust.py`)
 |✅ grün
 |===
 
