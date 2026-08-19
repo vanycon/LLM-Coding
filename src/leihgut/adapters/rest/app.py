@@ -57,6 +57,14 @@ from leihgut.anwendungskern.pruefung_service import (
     PruefabschlussErgebnis,
     pruefung_abschliessen,
 )
+from leihgut.anwendungskern.verlaengerung_service import (
+    AusleiheNichtGefunden as VerlaengerungAusleiheNichtGefunden,
+    AusleiheUeberfaellig,
+    BereitsVerlaengert,
+    MitgliedGesperrt as VerlaengerungMitgliedGesperrt,
+    VormerkungOffen,
+    ausleihe_verlaengern,
+)
 from leihgut.anwendungskern.einweisung_service import (
     BereitsWiderrufen,
     EinweisungBestehtBereits,
@@ -116,6 +124,14 @@ _PRUEFUNG_ABLEHNUNG_STATUS = {
     AbzugUebersteigtKaution: (422, "ABZUG_UEBERSTEIGT_KAUTION"),
 }
 
+_VERLAENGERUNG_ABLEHNUNG_STATUS = {
+    VerlaengerungAusleiheNichtGefunden: (404, "AUSLEIHE_NICHT_GEFUNDEN"),
+    AusleiheUeberfaellig: (409, "AUSLEIHE_UEBERFAELLIG"),
+    VormerkungOffen: (409, "VORMERKUNG_OFFEN"),
+    VerlaengerungMitgliedGesperrt: (409, "MITGLIED_GESPERRT"),
+    BereitsVerlaengert: (409, "BEREITS_VERLAENGERT"),
+}
+
 
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
@@ -139,6 +155,11 @@ def _rueckgabe_ablehnung_zu_http(ablehnung) -> HTTPException:
 
 def _pruefung_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _PRUEFUNG_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _verlaengerung_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _VERLAENGERUNG_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
@@ -355,6 +376,18 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             "kautionsabzugCent": ergebnis.kautionsabzug_cent,
             "neuerGegenstandZustand": ergebnis.neuer_gegenstand_zustand.value,
         }
+
+    @app.post("/ausleihen/{ausleiheId}/verlaengerung")
+    def ausleihe_verlaengern_endpoint(
+        ausleiheId: str,
+        _rolle: str = Depends(thekendienst_erforderlich),
+    ):
+        ergebnis = ausleihe_verlaengern(
+            ausleihe_repo, kategorie_repo, gegenstand_repo, clock, ausleiheId
+        )
+        if not isinstance(ergebnis, Ausleihe):
+            raise _verlaengerung_ablehnung_zu_http(ergebnis)
+        return _ausleihe_zu_dict(ergebnis)
 
     return app
 

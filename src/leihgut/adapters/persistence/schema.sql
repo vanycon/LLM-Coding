@@ -48,7 +48,8 @@ CREATE TABLE IF NOT EXISTS ausleihe (
     zustand TEXT NOT NULL CHECK (
         zustand IN ('aktiv', 'zurueckgegeben', 'abgeschlossen', 'abgeschlossen_verloren')
     ),
-    rueckgabe_auffaelligkeiten TEXT
+    rueckgabe_auffaelligkeiten TEXT,
+    mitglied_gesperrt INTEGER NOT NULL DEFAULT 0
 );
 
 -- ADR-007: höchstens eine aktive Ausleihe je Gegenstand, DB-erzwungen

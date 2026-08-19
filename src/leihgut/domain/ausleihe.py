@@ -29,6 +29,7 @@ class Ausleihe:
     verlaengert: bool = False
     zustand: AusleiheZustand = AusleiheZustand.AKTIV
     rueckgabe_auffaelligkeiten: str | None = None
+    mitglied_gesperrt: bool = False
 
     def ist_ueberfaellig(self, heute: str) -> bool:
         """BR-SPE-02: `rueckgabefrist < heute AND zustand NOT IN

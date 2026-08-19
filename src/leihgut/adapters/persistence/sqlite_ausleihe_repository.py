@@ -6,7 +6,7 @@ from leihgut.ports.ausleihe_repository import NebenlaeufigeAusgabeAbgelehnt
 
 _SELECT_SPALTEN = (
     "ausleihe_id, gegenstand_id, mitglied_id, ausgabedatum, rueckgabefrist, "
-    "kaution_cent, verlaengert, zustand, rueckgabe_auffaelligkeiten"
+    "kaution_cent, verlaengert, zustand, rueckgabe_auffaelligkeiten, mitglied_gesperrt"
 )
 
 
@@ -62,14 +62,15 @@ class SqliteAusleiheRepository:
     def update(self, ausleihe: Ausleihe) -> None:
         self._conn.execute(
             "UPDATE ausleihe SET rueckgabefrist = ?, kaution_cent = ?, "
-            "verlaengert = ?, zustand = ?, rueckgabe_auffaelligkeiten = ? "
-            "WHERE ausleihe_id = ?",
+            "verlaengert = ?, zustand = ?, rueckgabe_auffaelligkeiten = ?, "
+            "mitglied_gesperrt = ? WHERE ausleihe_id = ?",
             (
                 ausleihe.rueckgabefrist,
                 ausleihe.kaution_cent,
                 int(ausleihe.verlaengert),
                 ausleihe.zustand.value,
                 ausleihe.rueckgabe_auffaelligkeiten,
+                int(ausleihe.mitglied_gesperrt),
                 ausleihe.ausleihe_id,
             ),
         )
@@ -87,4 +88,5 @@ class SqliteAusleiheRepository:
             verlaengert=bool(row[6]),
             zustand=AusleiheZustand(row[7]),
             rueckgabe_auffaelligkeiten=row[8],
+            mitglied_gesperrt=bool(row[9]),
         )
