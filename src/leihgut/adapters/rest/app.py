@@ -436,6 +436,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             kategorie_repo,
             einweisung_repo,
             ausleihe_repo,
+            vormerkung_repo,
             clock,
             inventarnummer,
             body.mitgliedId,

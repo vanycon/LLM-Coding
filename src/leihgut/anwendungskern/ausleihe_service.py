@@ -108,11 +108,25 @@ def _ausgabe_pruefen(
     mitglied_gesperrt: bool,
     offene_ausleihen_anzahl: int,
     einweisung_gueltig: bool,
+    erste_vormerkung_mitglied_id: str | None = None,
 ) -> AusgabeAblehnung | None:
     """Prüfreihenfolge exakt wie in SI-01/UC-01 dokumentiert: Verfügbarkeit
-    → Sperre → Ausleihlimit → Einweisung."""
-    if gegenstand.zustand != GegenstandZustand.VERFUEGBAR:
-        return GegenstandNichtVerfuegbar(gegenstand.inventarnummer)  # BR-AUS-01
+    → Sperre → Ausleihlimit → Einweisung.
+    
+    BR-AUS-01 erweitert: Gegenstand verfügbar ODER (reserviert UND für dieses Mitglied).
+    """
+    # BR-AUS-01: Gegenstand verfügbar oder reserviert für dieses Mitglied
+    if gegenstand.zustand == GegenstandZustand.VERFUEGBAR:
+        pass  # OK, continue
+    elif gegenstand.zustand == GegenstandZustand.RESERVIERT:
+        # Reserviert: nur OK wenn für dieses Mitglied reserviert
+        if erste_vormerkung_mitglied_id != mitglied_id:
+            return GegenstandNichtVerfuegbar(gegenstand.inventarnummer)
+    else:
+        # Andere Zustände (IN_PRUEFUNG, AUSGELIEHEN, etc.): nicht OK
+        return GegenstandNichtVerfuegbar(gegenstand.inventarnummer)
+    
+    # Rest der Validierungen
     if mitglied_gesperrt:
         return MitgliedGesperrt(mitglied_id)  # BR-AUS-03
     if offene_ausleihen_anzahl >= MAX_AUSLEIHEN_JE_MITGLIED:
@@ -129,6 +143,7 @@ def gegenstand_ausgeben(
     kategorie_repo: KategorieRepository,
     einweisung_repo: EinweisungRepository,
     ausleihe_repo: AusleiheRepository,
+    vormerkung_repo: VormerkungRepository,
     clock: Clock,
     inventarnummer: str,
     mitglied_id: str,
@@ -145,6 +160,15 @@ def gegenstand_ausgeben(
         einweisung_repo.find_gueltige_je_mitglied_kategorie(mitglied_id, gegenstand.kategorie_id)
         is not None
     )
+    
+    # Lade erste Vormerkung (nur wenn RESERVIERT oder zusätzliche Kontextinfo nötig)
+    erste_vormerkung_mitglied_id: str | None = None
+    if gegenstand.zustand == GegenstandZustand.RESERVIERT:
+        offene_vormerkungen = vormerkung_repo.find_offene_je_kategorie_sortiert_nach_reihenfolge(
+            gegenstand.kategorie_id
+        )
+        if offene_vormerkungen:
+            erste_vormerkung_mitglied_id = offene_vormerkungen[0].mitglied_id
 
     ablehnung = _ausgabe_pruefen(
         gegenstand,
@@ -153,6 +177,7 @@ def gegenstand_ausgeben(
         mitglied_gesperrt,
         len(offene_ausleihen),
         einweisung_gueltig,
+        erste_vormerkung_mitglied_id,
     )
     if ablehnung is not None:
         return ablehnung

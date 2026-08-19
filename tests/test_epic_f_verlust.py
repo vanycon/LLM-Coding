@@ -85,6 +85,14 @@ def einweisung_repo(conn):
 
 
 @pytest.fixture
+def vormerkung_repo(conn):
+    from leihgut.adapters.persistence.sqlite_vormerkung_repository import (
+        SqliteVormerkungRepository,
+    )
+    return SqliteVormerkungRepository(conn)
+
+
+@pytest.fixture
 def clock():
     return FakeClock("2026-08-19T12:00:00Z")
 
@@ -109,7 +117,7 @@ class TestVerlustServiceValidierung:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
         assert isinstance(ausleihe_1, Exception) is False  # Should be Ausleihe
 
@@ -136,7 +144,7 @@ class TestVerlustServiceValidierung:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
 
         # Simuliere: abgeschlossen setzen
@@ -166,7 +174,7 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben (aktiv)
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
 
         # Action: Verlust erfassen
@@ -187,7 +195,7 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
 
         # Action: Verlust erfassen
@@ -209,7 +217,7 @@ class TestVerlustServiceHappyPath:
 
         # Setup: Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
         # Kaution sollte 1000 Cent sein (20% von 5000)
         assert ausleihe_1.kaution_cent == 1000  # BR-KAT-04: 20% auf ganze Euro
@@ -238,7 +246,7 @@ class TestVerlustServiceHappyPath:
         # Setup
         _gegenstand_anlegen(conn, "inv-1", "Cat1", 5000)
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "inv-1", "m1"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "inv-1", "m1"
         )
 
         # Action
@@ -270,7 +278,7 @@ class TestVerlustRestEndpoint:
 
         # Ausleihe ausgeben
         ausleihe_1 = gegenstand_ausgeben(
-            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock, "WT-001", "m42"
+            gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo,clock, "WT-001", "m42"
         )
         return ausleihe_1.ausleihe_id
 

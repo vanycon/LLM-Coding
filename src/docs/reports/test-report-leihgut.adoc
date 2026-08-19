@@ -19,10 +19,10 @@ Business-Rule-IDs, die sie abdeckt.
 |Kennzahl |Wert
 
 |Zuletzt aktualisiert
-|2026-08-19 (nach EPIC-G)
+|2026-08-19 (UC-01 Erweiterung: RESERVIERT-Handling)
 
 |Tests gesamt
-|172 (172 bestanden, 0 fehlgeschlagen)
+|175 (175 bestanden, 0 fehlgeschlagen)
 
 |Zeilenabdeckung (`pytest-cov`, `src/leihgut`)
 |98 % (~950 Anweisungen, ~25 nicht abgedeckt)
@@ -65,8 +65,8 @@ immer ein Vielfaches von 100 Cent")
 `TestWartungServiceValidierung`, `TestWartungServiceHappyPath` — UC-05, UC-06, UC-07, UC-08, UC-09, UC-10
 
 |Unit (isoliert, IOSP-Operation) — EPIC-A
-|6
-|`TestAusgabePruefen` — BR-AUS-01..04, geprüfte Reihenfolge nach SI-01
+|9
+|`TestAusgabePruefen` (9 tests: 6 existing + 3 RESERVIERT-handling) — BR-AUS-01..04, geprüfte Reihenfolge nach SI-01
 
 |Service (gegen echtes SQLite `:memory:`) — EPIC-A
 |17

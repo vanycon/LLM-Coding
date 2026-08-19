@@ -189,6 +189,36 @@ class TestAusgabePruefen:
         )
         assert ergebnis == GegenstandNichtVerfuegbar("INV-1")
 
+    def test_erlaubt_reservierten_gegenstand_fuer_mitglied(self):
+        # @UC-01 @BR-AUS-01 (erweitert: RESERVIERT-Handling)
+        # Gegenstand reserviert für M-1, M-1 fragt an → OK
+        ergebnis = _ausgabe_pruefen(
+            self._gegenstand(GegenstandZustand.RESERVIERT),
+            self._kategorie(), "M-1", False, 0, True,
+            erste_vormerkung_mitglied_id="M-1",
+        )
+        assert ergebnis is None
+
+    def test_lehnt_reservierten_gegenstand_fuer_anderes_mitglied_ab(self):
+        # @UC-01 @BR-AUS-01 (erweitert: RESERVIERT-Handling)
+        # Gegenstand reserviert für M-2, aber M-1 fragt an → 409
+        ergebnis = _ausgabe_pruefen(
+            self._gegenstand(GegenstandZustand.RESERVIERT),
+            self._kategorie(), "M-1", False, 0, True,
+            erste_vormerkung_mitglied_id="M-2",
+        )
+        assert ergebnis == GegenstandNichtVerfuegbar("INV-1")
+
+    def test_lehnt_reservierten_gegenstand_ohne_vormerkung_ab(self):
+        # @UC-01 @BR-AUS-01 (Konsistenz-Check)
+        # Gegenstand ist RESERVIERT, aber keine Vormerkung → 409 (Datenfehler)
+        ergebnis = _ausgabe_pruefen(
+            self._gegenstand(GegenstandZustand.RESERVIERT),
+            self._kategorie(), "M-1", False, 0, True,
+            erste_vormerkung_mitglied_id=None,
+        )
+        assert ergebnis == GegenstandNichtVerfuegbar("INV-1")
+
 
 # --- Integration: gegenstand_ausgeben (UC-01) ---------------------------
 
@@ -203,7 +233,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "BH-01", "M-1",
+            vormerkung_repo,clock, "BH-01", "M-1",
         )
 
         assert isinstance(ergebnis, Ausleihe)
@@ -220,7 +250,7 @@ class TestGegenstandAusgeben:
     ):
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "UNBEKANNT", "M-1",
+            vormerkung_repo,clock, "UNBEKANNT", "M-1",
         )
         assert ergebnis == GegenstandNichtGefunden("UNBEKANNT")
 
@@ -236,7 +266,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "BH-01", "M-1",
+            vormerkung_repo,clock, "BH-01", "M-1",
         )
 
         assert ergebnis == GegenstandNichtVerfuegbar("BH-01")
@@ -257,7 +287,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "BH-01", "M-2",
+            vormerkung_repo,clock, "BH-01", "M-2",
         )
 
         assert ergebnis == MitgliedGesperrt("M-2")
@@ -279,7 +309,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "KS-01", "M-3",
+            vormerkung_repo,clock, "KS-01", "M-3",
         )
 
         assert ergebnis == AusleihlimitErreicht("M-3")
@@ -308,7 +338,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "KS-02", "M-4",
+            vormerkung_repo,clock, "KS-02", "M-4",
         )
 
         assert ergebnis == AusleihlimitErreicht("M-4")
@@ -323,7 +353,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, "KS-03", "M-5",
+            vormerkung_repo,clock, "KS-03", "M-5",
         )
 
         assert ergebnis == EinweisungFehlt("M-5", "kat-kettensaege")
@@ -343,7 +373,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            clock, inventarnummer, "M-6",
+            vormerkung_repo,clock, inventarnummer, "M-6",
         )
 
         assert isinstance(ergebnis, Ausleihe)
@@ -472,6 +502,10 @@ class TestGegenstandAusgebenUebersetztNebenlaeufigkeit:
             )
 
             raise NebenlaeufigeAusgabeAbgelehnt(ausleihe.gegenstand_id)
+    
+    class _FakeVormerkungRepo:
+        def find_offene_je_kategorie_sortiert_nach_reihenfolge(self, kategorie_id):
+            return []
 
     def test_liefert_gegenstand_nicht_verfuegbar(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo, clock,
@@ -480,7 +514,9 @@ class TestGegenstandAusgebenUebersetztNebenlaeufigkeit:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo,
-            self._RepoDerImmerAbgelehntWird(), clock, "BH-21", "M-1",
+            self._RepoDerImmerAbgelehntWird(),
+            self._FakeVormerkungRepo(),
+            clock, "BH-21", "M-1",
         )
 
         assert ergebnis == GegenstandNichtVerfuegbar("BH-21")
@@ -619,7 +655,7 @@ class TestNebenlaeufigeAusgabe:
             barriere.wait()
             ergebnisse[index] = gegenstand_ausgeben(
                 gegenstand_repo, kategorie_repo, einweisung_repo,
-                ausleihe_repo, clock, "RACE-01", mitglied_id,
+                ausleihe_repo, vormerkung_repo,clock, "RACE-01", mitglied_id,
             )
             conn.close()
 
