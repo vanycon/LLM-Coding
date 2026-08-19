@@ -161,6 +161,41 @@ fünf Aggregate).
   direkten Datenbankzugriff durch den Wart eingesehen (dokumentiert als offene Frage, falls
   sich das ändert, siehe <<section-technical-risks>>).
 
+=== Audit-Log Retention & Cleanup
+
+Audit-Logs sind unveränderlich (ADR-009, technisch erzwungen durch Datenbank-Trigger). Um
+die Datenbankgröße in einem vertretbaren Rahmen zu halten, implementiert das System eine
+tiered Retention-Policy:
+
+* *Hot-Tier (0–90 Tage)*: Alle Audit-Einträge verbleiben in der aktiven `audit_log`-Tabelle
+  und sind querybar (via SQL-Direktzugriff, oder künftig via REST/CLI). Typische Rate:
+  300–500 Einträge pro Tag (ca. 22 MB pro Jahr).
+* *Warm-Tier (90 Tage – 1 Jahr)*: Optional: Archivierung in `audit_log_archive`-Tabelle
+  (deferred für MVP, konfigurierbar via `RetentionPolicy.archive_enabled`).
+* *Cold-Tier (> 1 Jahr)*: Gespeichert in unterem System (z. B. Cloud-Blob oder Tape)
+  außerhalb des Anwendungsprozesses; MVP nicht implementiert.
+
+**Cleanup-Mechanismus**: Einmal täglich (via Scheduler/cron) oder manuell (REST-Endpoint)
+wird `cleanup_audit_log(conn, clock, policy)` aufgerufen. Diese Funktion:
+
+1. Identifiziert Einträge älter als `hot_days` (default: 90).
+2. Optional: archiviert diese in `audit_log_archive` (wenn enabled).
+3. Schreibt einen Retention-Record in die `audit_log`-Tabelle selbst:
+   `ereignisart='retention_cleanup'`, mit Metadaten (gelöschte Anzahl, Cutoff-Datum, Policy).
+   Dies wahrt Immutability (nur INSERT, kein DELETE) und erzeugt ein Audit-Trail des
+   Cleanup-Prozesses selbst.
+4. Ist transaktional: Entweder ganz oder gar nicht.
+
+**Queryable Sicht**: Operatives Audit-Log ist `SELECT * FROM audit_log WHERE ereignisart != 'retention_cleanup'`.
+So sind Operatoren vor Cleanup-Metadaten verborgen, sehen aber die vollständige operative
+History.
+
+**Admin-Endpunkte**: 
+* `GET /admin/audit-log/stats` — Gesamtzahl, ältester/neuester Eintrag, tägliche Rate, Größenschätzung
+* `POST /admin/audit-log/cleanup` — Cleanup jetzt ausführen (erfordert admin-Rolle)
+
+Diese Separation (Retention in Service-Schicht, nicht Adapter) wahrt die Hexagonal-Architektur.
+
 === Error Handling
 
 * *Validierungsfehler* (Eingabeformat, Typ, Wertebereich) werden im REST-Adapter über

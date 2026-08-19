@@ -269,6 +269,54 @@ Ausgabe (Erfolg):: `201 Created` mit `{vormerkungId, mitgliedId, kategorieId, po
 
 Fehlerantworten:: `404 KATEGORIE_NICHT_GEFUNDEN`, `409 BEREITS_AUSGELIEHEN`, `409 VORMERKUNG_BESTEHT_BEREITS`.
 
+== SI-ADMIN-01: `GET /admin/audit-log/stats` (Audit-Log-Statistiken)
+
+Rolle:: admin
+
+Eingabe:: keine (Query-Parameter: optional zukünftig)
+
+Validierung:: Nur admin-Rolle zugelassen; sonst `403 ROLLE_NICHT_BERECHTIGT`.
+
+Verarbeitung:: Zähle Audit-Log-Einträge (filtern `ereignisart != 'retention_cleanup'`),
+berechne tägliche Rate und geschätzte Größe.
+
+Ausgabe (Erfolg):: `200 OK` mit
+```json
+{
+  "total_entries": 12345,
+  "oldest_entry": "2026-05-21T08:30:00",
+  "newest_entry": "2026-08-19T11:47:00",
+  "daily_rate": 42.5,
+  "estimated_size_mb": 2.43
+}
+```
+
+Fehlerantworten:: `403 ROLLE_NICHT_BERECHTIGT`.
+
+== SI-ADMIN-02: `POST /admin/audit-log/cleanup` (Audit-Log bereinigen)
+
+Rolle:: admin
+
+Eingabe:: keine (Policy ist hardcoded: `hot_days=90`)
+
+Validierung:: Nur admin-Rolle zugelassen; sonst `403 ROLLE_NICHT_BERECHTIGT`.
+
+Verarbeitung:: Führe `cleanup_audit_log()` mit Retention-Policy aus
+(siehe <<section-concepts>>, "Audit-Log Retention & Cleanup"). Schreibt Retention-Record in
+`audit_log`-Tabelle (ereignisart='retention_cleanup'). Ist transaktional.
+
+Ausgabe (Erfolg):: `200 OK` mit
+```json
+{
+  "deleted_count": 523,
+  "archived_count": 0,
+  "oldest_kept_timestamp": "2026-05-21T08:30:00",
+  "deleted_oldest_timestamp": "2026-04-17T15:22:00"
+}
+```
+
+Fehlerantworten:: `403 ROLLE_NICHT_BERECHTIGT`.
+
 == Fehlercode-Übersicht
 
 [cols="2,1,3"]
@@ -296,6 +344,6 @@ Fehlerantworten:: `404 KATEGORIE_NICHT_GEFUNDEN`, `409 BEREITS_AUSGELIEHEN`, `40
 |`WERT_UNGUELTIG` |422 |SI-09
 |`BEREITS_AUSGELIEHEN` |409 |SI-11
 |`VORMERKUNG_BESTEHT_BEREITS` |409 |SI-11
-|`ROLLE_NICHT_BERECHTIGT` |403 |alle
+|`ROLLE_NICHT_BERECHTIGT` |403 |alle + SI-ADMIN-01, SI-ADMIN-02
 |`NICHT_GEFUNDEN` |404 |SI-10
 |===
