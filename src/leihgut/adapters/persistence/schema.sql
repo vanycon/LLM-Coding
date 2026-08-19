@@ -143,3 +143,25 @@ CREATE TABLE IF NOT EXISTS kautionsbewegung (
     zeitstempel TEXT NOT NULL,
     ausloeser TEXT NOT NULL
 );
+
+-- Vormerkung (UC-05, BR-VOR-01/02): Reservierung auf eine Kategorie.
+-- reihenfolge ist die Position in der FIFO-Queue für diese Kategorie (1, 2, 3, ...).
+CREATE TABLE IF NOT EXISTS vormerkung (
+    vormerkung_id TEXT PRIMARY KEY,
+    kategorie_id TEXT NOT NULL REFERENCES kategorie (kategorie_id),
+    mitglied_id TEXT NOT NULL,
+    status TEXT NOT NULL CHECK (status IN ('offen', 'automatisch_abgesagt', 'manuell_abgesagt')),
+    reihenfolge INTEGER NOT NULL,
+    erstellt_am TEXT NOT NULL
+);
+
+-- BR-VOR-01: höchstens eine offene Vormerkung je Mitglied/Kategorie
+-- (abgesagte Vormerkungen blockieren nicht).
+CREATE UNIQUE INDEX IF NOT EXISTS ux_vormerkung_offen_je_mitglied_kategorie
+    ON vormerkung (mitglied_id, kategorie_id)
+    WHERE status = 'offen';
+
+-- BR-VOR-02: Reihenfolge für schnelle FIFO-Abfrage (erste = reihenfolge 1).
+CREATE INDEX IF NOT EXISTS ix_vormerkung_kategorie_offen
+    ON vormerkung (kategorie_id, reihenfolge)
+    WHERE status = 'offen';

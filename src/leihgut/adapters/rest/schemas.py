@@ -1,5 +1,5 @@
-"""Pydantic-Schemas für die Katalogpflege- (SI-09) und Einweisungs-Endpunkte
-(SI-07/SI-08)."""
+"""Pydantic-Schemas für die Katalogpflege- (SI-09), Einweisungs- (SI-07/SI-08),
+und Vormerkung-Endpunkte (SI-05)."""
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -30,6 +30,11 @@ class GegenstandAendernRequest(BaseModel):
 
 
 class EinweisungErfassenRequest(BaseModel):
+    mitgliedId: str
+    kategorieId: str
+
+
+class VormerkungErfassenRequest(BaseModel):
     mitgliedId: str
     kategorieId: str
 

@@ -27,6 +27,9 @@ from leihgut.adapters.persistence.sqlite_maengel_repository import (
 from leihgut.adapters.persistence.sqlite_pruefabschluss_repository import (
     SqlitePruefabschlussRepository,
 )
+from leihgut.adapters.persistence.sqlite_vormerkung_repository import (
+    SqliteVormerkungRepository,
+)
 from leihgut.adapters.rest.rollen import erfordere_rolle
 from leihgut.adapters.rest.schemas import (
     EinweisungErfassenRequest,
@@ -37,6 +40,7 @@ from leihgut.adapters.rest.schemas import (
     KategorieAendernRequest,
     KategorieAnlegenRequest,
     PruefungAbschliessenRequest,
+    VormerkungErfassenRequest,
 )
 from leihgut.adapters.system_clock import SystemClock
 from leihgut.anwendungskern.ausleihe_service import (
@@ -83,6 +87,13 @@ from leihgut.anwendungskern.katalog_service import (
     kategorie_aendern,
     kategorie_anlegen,
 )
+from leihgut.anwendungskern.vormerkung_service import (
+    DuplikatVormerkung,
+    MitgliedGesperrt as VormerkungMitgliedGesperrt,
+    VormerkungNichtGefunden,
+    KategorieNichtGefunden as VormerkungKategorieNichtGefunden,
+    vormerkung_erfassen,
+)
 from leihgut.anwendungskern.verfuegbarkeit_service import (
     GegenstandNichtGefunden as VerfuegbarkeitNichtGefunden,
 )
@@ -91,6 +102,7 @@ from leihgut.domain.ausleihe import Ausleihe
 from leihgut.domain.einweisung import Einweisung
 from leihgut.domain.gegenstand import Gegenstand
 from leihgut.domain.kategorie import Kategorie
+from leihgut.domain.vormerkung import Vormerkung
 from leihgut.ports.clock import Clock
 
 _KATALOG_ABLEHNUNG_STATUS = {
@@ -105,6 +117,13 @@ _EINWEISUNG_ABLEHNUNG_STATUS = {
     DuplikatEinweisung: (409, "DUPLIKAT_EINWEISUNG"),
     EinweisungNichtGefunden: (404, "EINWEISUNG_NICHT_GEFUNDEN"),
     BereitsWiderrufen: (409, "BEREITS_WIDERRUFEN"),
+}
+
+_VORMERKUNG_ABLEHNUNG_STATUS = {
+    VormerkungKategorieNichtGefunden: (404, "KATEGORIE_NICHT_GEFUNDEN"),
+    VormerkungMitgliedGesperrt: (409, "MITGLIED_GESPERRT"),
+    DuplikatVormerkung: (409, "DUPLIKAT_VORMERKUNG"),
+    VormerkungNichtGefunden: (404, "VORMERKUNG_NICHT_GEFUNDEN"),
 }
 
 _AUSGABE_ABLEHNUNG_STATUS = {
@@ -142,6 +161,11 @@ def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
 
 def _einweisung_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _EINWEISUNG_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _vormerkung_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _VORMERKUNG_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
@@ -190,11 +214,13 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     ausleihe_repo = SqliteAusleiheRepository(conn)
     maengel_repo = SqliteMaengelRepository(conn)
     pruefabschluss_repo = SqlitePruefabschlussRepository(conn)
+    vormerkung_repo = SqliteVormerkungRepository(conn)
     clock = clock or SystemClock()
 
     wart_erforderlich = erfordere_rolle("wart")
     lesend_erlaubt = erfordere_rolle("thekendienst", "mitglied", "wart")
     thekendienst_erforderlich = erfordere_rolle("thekendienst")
+    mitglied_erforderlich = erfordere_rolle("mitglied")
 
     @app.get("/gegenstaende/{inventarnummer}")
     def gegenstand_verfuegbarkeit(
@@ -319,6 +345,40 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         if not isinstance(ergebnis, Einweisung):
             raise _einweisung_ablehnung_zu_http(ergebnis)
         return None
+
+    @app.post("/vormerkungen", status_code=201)
+    def vormerkung_erfassen_endpoint(
+        body: VormerkungErfassenRequest, _rolle: str = Depends(wart_erforderlich)
+    ):
+        ergebnis = vormerkung_erfassen(
+            vormerkung_repo, kategorie_repo, ausleihe_repo, clock, body.mitgliedId, body.kategorieId
+        )
+        if not isinstance(ergebnis, Vormerkung):
+            raise _vormerkung_ablehnung_zu_http(ergebnis)
+        return {
+            "vormerkungId": ergebnis.vormerkung_id,
+            "mitgliedId": ergebnis.mitglied_id,
+            "kategorieId": ergebnis.kategorie_id,
+            "erstelltAm": ergebnis.erstellt_am,
+            "status": ergebnis.status,
+            "reihenfolge": ergebnis.reihenfolge,
+        }
+
+    @app.get("/vormerkungen/{vormerkungId}")
+    def vormerkung_abrufen_endpoint(
+        vormerkungId: str, _rolle: str = Depends(wart_erforderlich)
+    ):
+        ergebnis = vormerkung_abrufen(vormerkung_repo, vormerkungId)
+        if not isinstance(ergebnis, Vormerkung):
+            raise _vormerkung_ablehnung_zu_http(ergebnis)
+        return {
+            "vormerkungId": ergebnis.vormerkung_id,
+            "mitgliedId": ergebnis.mitglied_id,
+            "kategorieId": ergebnis.kategorie_id,
+            "erstelltAm": ergebnis.erstellt_am,
+            "status": ergebnis.status,
+            "reihenfolge": ergebnis.reihenfolge,
+        }
 
     @app.post("/gegenstaende/{inventarnummer}/ausgabe", status_code=201)
     def gegenstand_ausgeben_endpoint(
