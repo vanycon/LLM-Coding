@@ -269,6 +269,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     lesend_erlaubt = erfordere_rolle("thekendienst", "mitglied", "wart")
     thekendienst_erforderlich = erfordere_rolle("thekendienst")
     mitglied_erforderlich = erfordere_rolle("mitglied")
+    admin_erforderlich = erfordere_rolle("admin")
 
     @app.get("/gegenstaende/{inventarnummer}")
     def gegenstand_verfuegbarkeit(
@@ -530,6 +531,55 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             "inventarnummer": ergebnis.inventarnummer,
             "zustand": ergebnis.zustand.value,
             "nutzungszaehler": ergebnis.nutzungszaehler,
+        }
+
+    # ===== Admin Endpoints (Audit-Logging Retention) =====
+
+    @app.get("/admin/audit-log/stats")
+    def audit_log_stats_endpoint(_rolle: str = Depends(admin_erforderlich)):
+        """GET /admin/audit-log/stats — Audit-Log Statistiken.
+        
+        Requires: admin role
+        
+        Returns:
+            {
+                "total_entries": int,
+                "oldest_entry": str (ISO timestamp),
+                "newest_entry": str,
+                "daily_rate": float,
+                "estimated_size_mb": float
+            }
+        """
+        from leihgut.anwendungskern.audit_retention_service import get_audit_log_stats
+        
+        stats = get_audit_log_stats(conn)
+        return stats
+
+    @app.post("/admin/audit-log/cleanup", status_code=200)
+    def audit_log_cleanup_endpoint(_rolle: str = Depends(admin_erforderlich)):
+        """POST /admin/audit-log/cleanup — Audit-Logs älter als 90 Tage löschen.
+        
+        Requires: admin role
+        
+        Returns:
+            {
+                "deleted_count": int,
+                "archived_count": int,
+                "oldest_kept_timestamp": str,
+                "deleted_oldest_timestamp": str | null
+            }
+        """
+        from leihgut.anwendungskern.audit_retention_service import (
+            cleanup_audit_log,
+            RetentionPolicy,
+        )
+        
+        result = cleanup_audit_log(conn, clock, policy=RetentionPolicy(hot_days=90))
+        return {
+            "deleted_count": result.deleted_count,
+            "archived_count": result.archived_count,
+            "oldest_kept_timestamp": result.oldest_kept_timestamp,
+            "deleted_oldest_timestamp": result.deleted_oldest_timestamp,
         }
 
     return app
