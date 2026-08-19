@@ -93,6 +93,7 @@ from leihgut.anwendungskern.vormerkung_service import (
     VormerkungNichtGefunden,
     KategorieNichtGefunden as VormerkungKategorieNichtGefunden,
     vormerkung_erfassen,
+    vormerkung_abrufen,
 )
 from leihgut.anwendungskern.verfuegbarkeit_service import (
     GegenstandNichtGefunden as VerfuegbarkeitNichtGefunden,
@@ -348,10 +349,11 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
 
     @app.post("/vormerkungen", status_code=201)
     def vormerkung_erfassen_endpoint(
-        body: VormerkungErfassenRequest, _rolle: str = Depends(wart_erforderlich)
+        body: VormerkungErfassenRequest, _rolle: str = Depends(mitglied_erforderlich)
     ):
         ergebnis = vormerkung_erfassen(
-            vormerkung_repo, kategorie_repo, ausleihe_repo, clock, body.mitgliedId, body.kategorieId
+            vormerkung_repo, kategorie_repo, clock, body.mitgliedId, body.kategorieId,
+            gesperrte_mitglieder=[]  # TODO: Stub bis mitglied_repo implementiert
         )
         if not isinstance(ergebnis, Vormerkung):
             raise _vormerkung_ablehnung_zu_http(ergebnis)
@@ -360,13 +362,13 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             "mitgliedId": ergebnis.mitglied_id,
             "kategorieId": ergebnis.kategorie_id,
             "erstelltAm": ergebnis.erstellt_am,
-            "status": ergebnis.status,
+            "status": ergebnis.status.value,
             "reihenfolge": ergebnis.reihenfolge,
         }
 
     @app.get("/vormerkungen/{vormerkungId}")
     def vormerkung_abrufen_endpoint(
-        vormerkungId: str, _rolle: str = Depends(wart_erforderlich)
+        vormerkungId: str, _rolle: str = Depends(mitglied_erforderlich)
     ):
         ergebnis = vormerkung_abrufen(vormerkung_repo, vormerkungId)
         if not isinstance(ergebnis, Vormerkung):
@@ -376,7 +378,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             "mitgliedId": ergebnis.mitglied_id,
             "kategorieId": ergebnis.kategorie_id,
             "erstelltAm": ergebnis.erstellt_am,
-            "status": ergebnis.status,
+            "status": ergebnis.status.value,
             "reihenfolge": ergebnis.reihenfolge,
         }
 
@@ -406,7 +408,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         _rolle: str = Depends(thekendienst_erforderlich),
     ):
         ergebnis = gegenstand_zuruecknehmen(
-            ausleihe_repo, gegenstand_repo, ausleiheId, body.auffaelligkeiten
+            ausleihe_repo, gegenstand_repo, vormerkung_repo, ausleiheId, body.auffaelligkeiten
         )
         if not isinstance(ergebnis, Ausleihe):
             raise _rueckgabe_ablehnung_zu_http(ergebnis)

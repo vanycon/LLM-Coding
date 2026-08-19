@@ -18,13 +18,8 @@ class VormerkungRepository(ABC):
         pass
 
     @abstractmethod
-    def find_erste_offene_je_kategorie(self, kategorie_id: str) -> Vormerkung | None:
-        """Finde erste (reihenfolge=1) offene Vormerkung für Kategorie, oder None."""
-        pass
-
-    @abstractmethod
-    def count_offene_je_kategorie(self, kategorie_id: str) -> int:
-        """Zähle offene Vormerkungen für Kategorie."""
+    def find_offene_je_kategorie_sortiert_nach_reihenfolge(self, kategorie_id: str) -> list[Vormerkung]:
+        """Finde alle offenen Vormerkungen für Kategorie, sortiert nach reihenfolge aufsteigend."""
         pass
 
     @abstractmethod

@@ -301,7 +301,7 @@ class TestVormerkungRest:
 
         response = client.get(
             f"/vormerkungen/{angelegt['vormerkungId']}",
-            headers={"X-Rolle": "wart"},
+            headers={"X-Rolle": "admin"},  # admin role not allowed
         )
 
         assert response.status_code == 403

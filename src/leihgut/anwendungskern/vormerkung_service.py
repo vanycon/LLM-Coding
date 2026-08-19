@@ -145,3 +145,19 @@ def vormerkungs_verwalten_nach_rueckgabe(
     )
     vormerkung_repo.update(automatisch_abgesagte)
     return automatisch_abgesagte
+
+
+# --- Integration: Vormerkung abrufen (GET /vormerkungen/{id}) ---
+
+
+def vormerkung_abrufen(
+    vormerkung_repo: VormerkungRepository, vormerkung_id: str
+) -> Vormerkung | VormerkungNichtGefunden:
+    """Vormerkung abrufen nach ID (GET /vormerkungen/{id} / SI-05).
+
+    Liefert die Vormerkung oder VormerkungNichtGefunden (404).
+    """
+    gefundene = vormerkung_repo.find_by_id(vormerkung_id)
+    if gefundene is None:
+        return VormerkungNichtGefunden(vormerkung_id)
+    return gefundene

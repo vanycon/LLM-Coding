@@ -22,6 +22,8 @@ from leihgut.ports.clock import Clock
 from leihgut.ports.einweisung_repository import EinweisungRepository
 from leihgut.ports.gegenstand_repository import GegenstandRepository
 from leihgut.ports.kategorie_repository import KategorieRepository
+from leihgut.ports.vormerkung_repository import VormerkungRepository
+from leihgut.anwendungskern.vormerkung_service import vormerkungs_verwalten_nach_rueckgabe
 
 MAX_AUSLEIHEN_JE_MITGLIED = 3  # BR-AUS-02
 
@@ -194,6 +196,7 @@ def gegenstand_ausgeben(
 def gegenstand_zuruecknehmen(
     ausleihe_repo: AusleiheRepository,
     gegenstand_repo: GegenstandRepository,
+    vormerkung_repo: VormerkungRepository,
     ausleihe_id: str,
     auffaelligkeiten: str | None = None,
 ) -> Ausleihe | RueckgabeAblehnung:
@@ -226,4 +229,8 @@ def gegenstand_zuruecknehmen(
             nutzungszaehler=gegenstand.nutzungszaehler,
         )
     )
+    
+    # Nach erfolgreicher Rückgabe: Erste offene Vormerkung automatisch absagen (UC-05 Integration)
+    vormerkungs_verwalten_nach_rueckgabe(vormerkung_repo, gegenstand.kategorie_id)
+    
     return geaenderte_ausleihe
