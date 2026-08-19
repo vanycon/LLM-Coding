@@ -368,7 +368,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
 
     @app.get("/vormerkungen/{vormerkungId}")
     def vormerkung_abrufen_endpoint(
-        vormerkungId: str, _rolle: str = Depends(mitglied_erforderlich)
+        vormerkungId: str, _rolle: str = Depends(lesend_erlaubt)
     ):
         ergebnis = vormerkung_abrufen(vormerkung_repo, vormerkungId)
         if not isinstance(ergebnis, Vormerkung):
