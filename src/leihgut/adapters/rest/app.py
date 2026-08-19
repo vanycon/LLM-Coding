@@ -6,8 +6,10 @@ Rollenprüfung an der Systemgrenze", 08_concepts.adoc), bevor er den
 Anwendungskern aufruft.
 """
 import sqlite3
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
+from fastapi.staticfiles import StaticFiles
 
 from leihgut.adapters.persistence.sqlite_audit_log_repository import (
     SqliteAuditLogRepository,
@@ -581,6 +583,11 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             "oldest_kept_timestamp": result.oldest_kept_timestamp,
             "deleted_oldest_timestamp": result.deleted_oldest_timestamp,
         }
+
+    # ===== Static Files (Demo Frontend) =====
+    static_dir = Path(__file__).parent / "static"
+    if static_dir.exists():
+        app.mount("/", StaticFiles(directory=str(static_dir), html=True), name="static")
 
     return app
 
