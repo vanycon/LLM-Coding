@@ -1,6 +1,8 @@
 """Pydantic-Schemas für die Katalogpflege- (SI-09) und Einweisungs-Endpunkte
 (SI-07/SI-08)."""
-from pydantic import BaseModel
+from typing import Literal
+
+from pydantic import BaseModel, Field
 
 
 class KategorieAnlegenRequest(BaseModel):

@@ -21,6 +21,12 @@ from leihgut.adapters.persistence.sqlite_gegenstand_repository import (
 from leihgut.adapters.persistence.sqlite_kategorie_repository import (
     SqliteKategorieRepository,
 )
+from leihgut.adapters.persistence.sqlite_maengel_repository import (
+    SqliteMaengelRepository,
+)
+from leihgut.adapters.persistence.sqlite_pruefabschluss_repository import (
+    SqlitePruefabschlussRepository,
+)
 from leihgut.adapters.rest.rollen import erfordere_rolle
 from leihgut.adapters.rest.schemas import (
     EinweisungErfassenRequest,
@@ -30,6 +36,7 @@ from leihgut.adapters.rest.schemas import (
     GegenstandZuruecknehmenRequest,
     KategorieAendernRequest,
     KategorieAnlegenRequest,
+    PruefungAbschliessenRequest,
 )
 from leihgut.adapters.system_clock import SystemClock
 from leihgut.anwendungskern.ausleihe_service import (
@@ -42,6 +49,13 @@ from leihgut.anwendungskern.ausleihe_service import (
     MitgliedGesperrt,
     gegenstand_ausgeben,
     gegenstand_zuruecknehmen,
+)
+from leihgut.anwendungskern.pruefung_service import (
+    AbzugUebersteigtKaution,
+    AusleiheNichtGefunden as PruefungAusleiheNichtGefunden,
+    NichtInPruefung,
+    PruefabschlussErgebnis,
+    pruefung_abschliessen,
 )
 from leihgut.anwendungskern.einweisung_service import (
     BereitsWiderrufen,
@@ -96,6 +110,12 @@ _RUECKGABE_ABLEHNUNG_STATUS = {
     BereitsZurueckgegeben: (409, "BEREITS_ZURUECKGEGEBEN"),
 }
 
+_PRUEFUNG_ABLEHNUNG_STATUS = {
+    PruefungAusleiheNichtGefunden: (404, "AUSLEIHE_NICHT_GEFUNDEN"),
+    NichtInPruefung: (409, "NICHT_IN_PRUEFUNG"),
+    AbzugUebersteigtKaution: (422, "ABZUG_UEBERSTEIGT_KAUTION"),
+}
+
 
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
@@ -114,6 +134,11 @@ def _ausgabe_ablehnung_zu_http(ablehnung) -> HTTPException:
 
 def _rueckgabe_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _RUECKGABE_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _pruefung_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _PRUEFUNG_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
@@ -140,6 +165,8 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     kategorie_repo = SqliteKategorieRepository(conn)
     einweisung_repo = SqliteEinweisungRepository(conn)
     ausleihe_repo = SqliteAusleiheRepository(conn)
+    maengel_repo = SqliteMaengelRepository(conn)
+    pruefabschluss_repo = SqlitePruefabschlussRepository(conn)
     clock = clock or SystemClock()
 
     wart_erforderlich = erfordere_rolle("wart")
@@ -301,6 +328,33 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         if not isinstance(ergebnis, Ausleihe):
             raise _rueckgabe_ablehnung_zu_http(ergebnis)
         return _ausleihe_zu_dict(ergebnis)
+
+    @app.post("/ausleihen/{ausleiheId}/pruefprotokoll", status_code=201)
+    def pruefung_abschliessen_endpoint(
+        ausleiheId: str,
+        body: PruefungAbschliessenRequest,
+        _rolle: str = Depends(wart_erforderlich),
+    ):
+        ergebnis = pruefung_abschliessen(
+            ausleihe_repo,
+            gegenstand_repo,
+            kategorie_repo,
+            maengel_repo,
+            pruefabschluss_repo,
+            clock,
+            ausleiheId,
+            [m.beschreibung for m in body.neueMaengel],
+            body.kautionsabzugCent,
+            body.zielzustand,
+        )
+        if not isinstance(ergebnis, PruefabschlussErgebnis):
+            raise _pruefung_ablehnung_zu_http(ergebnis)
+        return {
+            "pruefprotokollId": ergebnis.pruefprotokoll_id,
+            "ausleiheId": ergebnis.ausleihe_id,
+            "kautionsabzugCent": ergebnis.kautionsabzug_cent,
+            "neuerGegenstandZustand": ergebnis.neuer_gegenstand_zustand.value,
+        }
 
     return app
 
