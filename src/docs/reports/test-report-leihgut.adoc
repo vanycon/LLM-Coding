@@ -19,17 +19,17 @@ Business-Rule-IDs, die sie abdeckt.
 |Kennzahl |Wert
 
 |Zuletzt aktualisiert
-|2026-08-18 (nach EPIC-A)
+|2026-08-19 (nach EPIC-E)
 
 |Tests gesamt
-|78 (78 bestanden, 0 fehlgeschlagen)
+|151 (151 bestanden, 0 fehlgeschlagen)
 
 |Zeilenabdeckung (`pytest-cov`, `src/leihgut`)
-|98 % (514 Anweisungen, 9 nicht abgedeckt)
+|98 % (915 Anweisungen, 22 nicht abgedeckt)
 
 |Abgeschlossene EPICs
 |Walking Skeleton (Skeleton-01, UC-10), EPIC-D (UC-09), EPIC-C (UC-07, UC-08),
-EPIC-A (UC-01, UC-03)
+EPIC-A (UC-01, UC-03), EPIC-A2 (UC-02), EPIC-B (UC-04), EPIC-E (UC-05/UC-11 Vormerkung)
 |===
 
 Reproduzierbar mit:
@@ -121,14 +121,32 @@ NOTE: Der in `08_concepts.adoc` beschriebene Mehr-Thread-Test gegen die Anwendun
 |EPIC-C: Einweisung
 |UC-07, UC-08
 |BR-EIN-01..03, BR-AUS-04 (Ablehnungsteil)
-|14 (`tests/test_epic_c_einweisung.py`)
+|16 (`tests/test_epic_c_einweisung.py`)
 |✅ grün
 
 |EPIC-A: Ausleihe-Kernprozess
-|UC-01..03
-|BR-AUS-01..05
+|UC-01, UC-03
+|BR-AUS-01..05, BR-RUP-01..02
 |28 (`tests/test_epic_a_ausleihe.py`)
-|✅ grün (UC-02/Verlängerung folgt in EPIC-A2)
+|✅ grün
+
+|EPIC-A2: Ausleihe verlängern
+|UC-02
+|BR-AUS-02, BR-VER-01..02
+|15 (`tests/test_epic_a2_verlaengerung.py`)
+|✅ grün
+
+|EPIC-B: Prüfung & Kaution
+|UC-04
+|BR-KAU-01..04, BR-RUP-03..05, BR-PRU-01..02
+|36 (`tests/test_epic_b_pruefung_kaution.py`)
+|✅ grün
+
+|EPIC-E: Vormerkung
+|UC-05 (Vormerkung anlegen), UC-11 (Rückgabe-Integration)
+|BR-VOR-01..03
+|16 (`tests/test_epic_e_vormerkung.py`)
+|✅ grün
 |===
 
 BR-KAT-05 und BR-KAT-06 sind absichtlich *nicht* in der EPIC-D-Testsuite abgedeckt — beide
