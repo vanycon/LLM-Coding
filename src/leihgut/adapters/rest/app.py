@@ -98,6 +98,12 @@ from leihgut.anwendungskern.vormerkung_service import (
 from leihgut.anwendungskern.verfuegbarkeit_service import (
     GegenstandNichtGefunden as VerfuegbarkeitNichtGefunden,
 )
+from leihgut.anwendungskern.verlust_service import (
+    AusleiheNichtAktiv as VerlustAusleiheNichtAktiv,
+    AusleiheNichtGefunden as VerlustAusleiheNichtGefunden,
+    GegenstandNichtGefunden as VerlustGegenstandNichtGefunden,
+    verlust_erfassen,
+)
 from leihgut.anwendungskern.verfuegbarkeit_service import verfuegbarkeit_pruefen
 from leihgut.domain.ausleihe import Ausleihe
 from leihgut.domain.einweisung import Einweisung
@@ -154,6 +160,12 @@ _VERLAENGERUNG_ABLEHNUNG_STATUS = {
     BereitsVerlaengert: (409, "BEREITS_VERLAENGERT"),
 }
 
+_VERLUST_ABLEHNUNG_STATUS = {
+    VerlustAusleiheNichtGefunden: (404, "AUSLEIHE_NICHT_GEFUNDEN"),
+    VerlustAusleiheNichtAktiv: (409, "AUSLEIHE_NICHT_AKTIV"),
+    VerlustGegenstandNichtGefunden: (404, "GEGENSTAND_NICHT_GEFUNDEN"),
+}
+
 
 def _katalog_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _KATALOG_ABLEHNUNG_STATUS[type(ablehnung)]
@@ -187,6 +199,11 @@ def _pruefung_ablehnung_zu_http(ablehnung) -> HTTPException:
 
 def _verlaengerung_ablehnung_zu_http(ablehnung) -> HTTPException:
     status_code, fehlercode = _VERLAENGERUNG_ABLEHNUNG_STATUS[type(ablehnung)]
+    return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
+
+
+def _verlust_ablehnung_zu_http(ablehnung) -> HTTPException:
+    status_code, fehlercode = _VERLUST_ABLEHNUNG_STATUS[type(ablehnung)]
     return HTTPException(status_code=status_code, detail={"fehlercode": fehlercode})
 
 
@@ -451,6 +468,18 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
         )
         if not isinstance(ergebnis, Ausleihe):
             raise _verlaengerung_ablehnung_zu_http(ergebnis)
+        return _ausleihe_zu_dict(ergebnis)
+
+    @app.post("/ausleihen/{ausleiheId}/verlust", status_code=201)
+    def verlust_erfassen_endpoint(
+        ausleiheId: str,
+        rolle: str = Depends(wart_erforderlich),
+    ):
+        ergebnis = verlust_erfassen(
+            conn, ausleihe_repo, gegenstand_repo, clock, ausleiheId, rolle
+        )
+        if not isinstance(ergebnis, Ausleihe):
+            raise _verlust_ablehnung_zu_http(ergebnis)
         return _ausleihe_zu_dict(ergebnis)
 
     return app

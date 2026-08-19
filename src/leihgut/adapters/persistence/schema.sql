@@ -132,13 +132,13 @@ CREATE TABLE IF NOT EXISTS maengel_eintrag (
         REFERENCES pruefprotokoll (pruefprotokoll_id)
 );
 
--- Kautionsbewegung (BR-KAU-01, BR-KAU-04): 'hinterlegung' ist ein
+-- Kautionsbewegung (BR-KAU-01, BR-KAU-04, BR-VER-03): 'hinterlegung' ist ein
 -- gueltiger, in dieser Codebasis aber (noch) nicht erzeugter Wert -- siehe
--- domain/kautionsbewegung.py.
+-- domain/kautionsbewegung.py. 'verlust_einzug' wird in UC-06 erzeugt (Verlust).
 CREATE TABLE IF NOT EXISTS kautionsbewegung (
     bewegung_id TEXT PRIMARY KEY,
     ausleihe_id TEXT NOT NULL REFERENCES ausleihe (ausleihe_id),
-    art TEXT NOT NULL CHECK (art IN ('hinterlegung', 'abzug', 'freigabe')),
+    art TEXT NOT NULL CHECK (art IN ('hinterlegung', 'abzug', 'freigabe', 'verlust_einzug')),
     betrag_cent INTEGER NOT NULL CHECK (betrag_cent >= 0),
     zeitstempel TEXT NOT NULL,
     ausloeser TEXT NOT NULL

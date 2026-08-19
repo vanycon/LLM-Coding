@@ -5,8 +5,7 @@ Bewegungstyp, wird aber in dieser Codebasis (noch) nicht erzeugt: die
 Rückverfolgbarkeitstabelle in `spec.adoc` ordnet BR-KAU-01/04 ausschließlich
 UC-04 zu, nicht UC-01 (siehe Analyse zu User Story B1,
 `epic-b-pruefung-kaution.adoc`). `ABZUG` und `FREIGABE` entstehen beim
-Prüfabschluss (UC-04); ein künftiger `HINTERLEGUNG`-Eintrag wäre bei Bedarf
-in `anwendungskern/ausleihe_service.py` zu ergänzen.
+Prüfabschluss (UC-04); `VERLUST_EINZUG` entsteht bei Verlustmeldung (UC-06).
 """
 from dataclasses import dataclass
 from enum import Enum
@@ -16,6 +15,7 @@ class KautionsbewegungArt(str, Enum):
     HINTERLEGUNG = "hinterlegung"
     ABZUG = "abzug"
     FREIGABE = "freigabe"
+    VERLUST_EINZUG = "verlust_einzug"
 
 
 @dataclass(frozen=True)
