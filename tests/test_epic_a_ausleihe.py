@@ -119,6 +119,11 @@ def vormerkung_repo(conn):
 
 
 @pytest.fixture
+def audit_log_repo(conn):
+    return SqliteAuditLogRepository(conn)
+
+
+@pytest.fixture
 def clock():
     return FakeClock("2026-08-18T10:00:00")
 
@@ -225,7 +230,7 @@ class TestAusgabePruefen:
 class TestGegenstandAusgeben:
     def test_gibt_verfuegbaren_gegenstand_aus(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-01 gegenstand-ausgeben.feature:
         # "Ausgabe eines verfügbaren Gegenstands"
@@ -233,7 +238,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "BH-01", "M-1",
+            vormerkung_repo, audit_log_repo, clock, "BH-01", "M-1",
         )
 
         assert isinstance(ergebnis, Ausleihe)
@@ -246,17 +251,17 @@ class TestGegenstandAusgeben:
         assert aktualisiert.zustand == GegenstandZustand.AUSGELIEHEN
 
     def test_lehnt_nicht_gefundenen_gegenstand_ab(
-        self, gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, clock,
+        self, gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "UNBEKANNT", "M-1",
+            vormerkung_repo, audit_log_repo, clock, "UNBEKANNT", "M-1",
         )
         assert ergebnis == GegenstandNichtGefunden("UNBEKANNT")
 
     def test_lehnt_ausgeliehenen_gegenstand_ab(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-01 gegenstand-ausgeben.feature:
         # "Ausgabe eines ausgeliehenen Gegenstands wird abgelehnt"
@@ -266,14 +271,14 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "BH-01", "M-1",
+            vormerkung_repo, audit_log_repo, clock, "BH-01", "M-1",
         )
 
         assert ergebnis == GegenstandNichtVerfuegbar("BH-01")
 
     def test_lehnt_ausgabe_an_gesperrtes_mitglied_ab(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-03 gegenstand-ausgeben.feature:
         # "Ausgabe an gesperrtes Mitglied wird abgelehnt"
@@ -287,14 +292,14 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "BH-01", "M-2",
+            vormerkung_repo, audit_log_repo, clock, "BH-01", "M-2",
         )
 
         assert ergebnis == MitgliedGesperrt("M-2")
 
     def test_lehnt_viertes_gleichzeitiges_ausleihen_ab(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-02 gegenstand-ausgeben.feature:
         # "Viertes gleichzeitiges Ausleihen wird abgelehnt"
@@ -309,14 +314,14 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "KS-01", "M-3",
+            vormerkung_repo, audit_log_repo, clock, "KS-01", "M-3",
         )
 
         assert ergebnis == AusleihlimitErreicht("M-3")
 
     def test_zurueckgegebene_ungeprueft_ausleihe_zaehlt_gegen_limit(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-02 gegenstand-ausgeben.feature:
         # "Zurückgegebene, aber ungeprüfte Ausleihe zählt gegen das Limit"
@@ -338,14 +343,14 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "KS-02", "M-4",
+            vormerkung_repo, audit_log_repo, clock, "KS-02", "M-4",
         )
 
         assert ergebnis == AusleihlimitErreicht("M-4")
 
     def test_lehnt_einweisungspflichtigen_gegenstand_ohne_einweisung_ab(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock,
     ):
         # @UC-01 @BR-AUS-04 gegenstand-ausgeben.feature:
         # "Einweisungspflichtiger Gegenstand ohne Einweisung wird abgelehnt"
@@ -353,7 +358,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, "KS-03", "M-5",
+            vormerkung_repo, audit_log_repo, clock, "KS-03", "M-5",
         )
 
         assert ergebnis == EinweisungFehlt("M-5", "kat-kettensaege")
@@ -364,7 +369,7 @@ class TestGegenstandAusgeben:
     )
     def test_kautionsberechnung_bei_ausgabe(
         self, conn, gegenstand_repo, kategorie_repo, einweisung_repo,
-        ausleihe_repo, clock, wbw, kaution_erwartet,
+        ausleihe_repo, vormerkung_repo, audit_log_repo, clock, wbw, kaution_erwartet,
     ):
         # @UC-01 @BR-AUS-05 @BR-KAT-04 gegenstand-ausgeben.feature:
         # "Kautionsberechnung bei Ausgabe" (Scenario Outline)
@@ -373,7 +378,7 @@ class TestGegenstandAusgeben:
 
         ergebnis = gegenstand_ausgeben(
             gegenstand_repo, kategorie_repo, einweisung_repo, ausleihe_repo,
-            vormerkung_repo,clock, inventarnummer, "M-6",
+            vormerkung_repo, audit_log_repo, clock, inventarnummer, "M-6",
         )
 
         assert isinstance(ergebnis, Ausleihe)
@@ -655,7 +660,7 @@ class TestNebenlaeufigeAusgabe:
             barriere.wait()
             ergebnisse[index] = gegenstand_ausgeben(
                 gegenstand_repo, kategorie_repo, einweisung_repo,
-                ausleihe_repo, vormerkung_repo,clock, "RACE-01", mitglied_id,
+                ausleihe_repo, vormerkung_repo, audit_log_repo, clock, "RACE-01", mitglied_id,
             )
             conn.close()
 

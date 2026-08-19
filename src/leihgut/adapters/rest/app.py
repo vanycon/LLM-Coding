@@ -9,6 +9,9 @@ import sqlite3
 
 from fastapi import Depends, FastAPI, HTTPException
 
+from leihgut.adapters.persistence.sqlite_audit_log_repository import (
+    SqliteAuditLogRepository,
+)
 from leihgut.adapters.persistence.sqlite_ausleihe_repository import (
     SqliteAusleiheRepository,
 )
@@ -259,6 +262,7 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
     maengel_repo = SqliteMaengelRepository(conn)
     pruefabschluss_repo = SqlitePruefabschlussRepository(conn)
     vormerkung_repo = SqliteVormerkungRepository(conn)
+    audit_log_repo = SqliteAuditLogRepository(conn)
     clock = clock or SystemClock()
 
     wart_erforderlich = erfordere_rolle("wart")
@@ -437,9 +441,11 @@ def create_app(conn: sqlite3.Connection, clock: Clock | None = None) -> FastAPI:
             einweisung_repo,
             ausleihe_repo,
             vormerkung_repo,
+            audit_log_repo,
             clock,
             inventarnummer,
             body.mitgliedId,
+            _rolle,
         )
         if not isinstance(ergebnis, Ausleihe):
             raise _ausgabe_ablehnung_zu_http(ergebnis)

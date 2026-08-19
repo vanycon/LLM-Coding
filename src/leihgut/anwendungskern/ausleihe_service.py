@@ -6,14 +6,17 @@ Domänenwerte) und wird isoliert getestet; `gegenstand_ausgeben` ist die
 Integration (Repository-Aufrufe in der in SI-01/UC-01 vorgegebenen
 Prüfreihenfolge). Siehe `08_concepts.adoc`, Abschnitt Test.
 """
+import json
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
 
+from leihgut.domain.audit_log import AuditLogEintrag
 from leihgut.domain.ausleihe import Ausleihe, AusleiheZustand
 from leihgut.domain.gegenstand import Gegenstand, GegenstandZustand
 from leihgut.domain.kategorie import Kategorie
 from leihgut.domain.kaution import kaution_berechnen
+from leihgut.ports.audit_log_repository import AuditLogRepository
 from leihgut.ports.ausleihe_repository import (
     AusleiheRepository,
     NebenlaeufigeAusgabeAbgelehnt,
@@ -144,9 +147,11 @@ def gegenstand_ausgeben(
     einweisung_repo: EinweisungRepository,
     ausleihe_repo: AusleiheRepository,
     vormerkung_repo: VormerkungRepository,
+    audit_log_repo: AuditLogRepository,
     clock: Clock,
     inventarnummer: str,
     mitglied_id: str,
+    rolle: str = "thekendienst",
 ) -> Ausleihe | AusgabeAblehnung:
     gegenstand = gegenstand_repo.find_by_inventarnummer(inventarnummer)
     if gegenstand is None:
@@ -213,6 +218,31 @@ def gegenstand_ausgeben(
             nutzungszaehler=gegenstand.nutzungszaehler,
         )
     )
+    
+    # Audit-Einträge schreiben (UC-01, BR-AUS-01 + BR-AUS-05)
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=clock.jetzt(),
+        aggregat="Gegenstand",
+        aggregat_id=inventarnummer,
+        ereignisart="zustand_geaendert",
+        rolle=rolle,
+        werte_vorher=json.dumps({"zustand": gegenstand.zustand.value}),
+        werte_nachher=json.dumps({"zustand": GegenstandZustand.AUSGELIEHEN.value}),
+    ))
+    audit_log_repo.insert(AuditLogEintrag(
+        zeitstempel=clock.jetzt(),
+        aggregat="Ausleihe",
+        aggregat_id=ausleihe.ausleihe_id,
+        ereignisart="erstellt",
+        rolle=rolle,
+        werte_vorher=None,
+        werte_nachher=json.dumps({
+            "mitglied_id": mitglied_id,
+            "gegenstand_id": inventarnummer,
+            "kaution_cent": kaution_cent,
+        }),
+    ))
+    
     return ausleihe
 
 
