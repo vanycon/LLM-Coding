@@ -1,0 +1,18 @@
+{
+  "name": "Leihgut Rust and SQLite",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "remoteUser": "vscode",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "rust-lang.rust-analyzer",
+        "tamasfe.even-better-toml"
+      ]
+    }
+  },
+  "forwardPorts": [3000],
+  "postCreateCommand": "rustc --version && cargo --version && sqlite3 --version"
+}

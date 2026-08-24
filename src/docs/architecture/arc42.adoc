@@ -413,6 +413,22 @@ Decision: provide the specified expiry command and keep scheduling/lazy executio
 |Contract certainty |+ Already specified by interface. |+ Not specified. |- Not specified.
 |===
 
+=== ADR-005: Use Rust with SQLite for release 1
+
+Decision: implement the single local process in Rust, use `axum` and `tokio` for REST, `clap` for the technician CLI, `serde` for DTOs, `sqlx` for explicit SQLite repositories and migrations, and `tracing` for diagnostics. Use `time` for dates and timestamps, and represent money as integer euro cents.
+
+[cols="1,2,2,2"]
+|===
+|Criteria |Rust plus SQLite |Rust plus PostgreSQL |Rust plus an embedded key-value store
+
+|Operational fit |+ One local process and no database service. | - Requires a separate database service. |+ Local process.
+|Transactional behavior |+ SQLite transactions and constraints support the required atomic use cases. |+ Strong transactions. |+ Depends on library and schema design.
+|Data access |+ SQL and migrations make ledger and audit queries explicit. |+ SQL and migrations. | - Relational queries and reporting become custom.
+|Team fit |+ Uses the team's Rust expertise and a mature local database. |+ Uses Rust expertise. |+ Uses Rust expertise but adds storage-specific risk.
+|===
+
+The selected stack satisfies the scale and single-process constraint. SQLite runs in WAL mode where appropriate, with repository-level transactions, uniqueness constraints, indexes, and durable immutable deposit and audit tables. The devcontainer in `.devcontainer/` provides Rust and SQLite prerequisites reproducibly.
+
 == 10. Quality Requirements
 
 === 10.1 Security and Correctness Scenarios
@@ -456,7 +472,6 @@ Decision: provide the specified expiry command and keep scheduling/lazy executio
 
 === 11.2 Technical Debt
 
-* The persistence technology and schema migration tool are intentionally undecided.
 * Idempotency keys for retried state-changing commands are still an open developer question.
 * Backup, restoration, and data-directory conventions are still open operational questions.
 * Authentication is outside release 1 and must not be mistaken for the role header contract.
@@ -492,7 +507,6 @@ The main sensitivity point is the transaction boundary: splitting audit, deposit
 
 The architecture is implementable within the stated release-1 constraints, but these questions remain intentionally open:
 
-* Which persistence technology and migration approach are selected?
 * Are duplicate holds for one member and category rejected or merged?
 * What idempotency key is used for retried issue, return, inspection, maintenance, and reservation commands?
 * How is prior damage selected when several historical inspection reports mention it?

@@ -1,0 +1,28 @@
+= Issue 0021: Define Rust and SQLite Development Container
+:issue-id: 0021
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, UC-03, UC-04, UC-05, UC-06, UC-07, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06
+
+== Description
+Provide a reproducible development container with the Rust stable toolchain and the SQLite command-line and native development support required by the selected architecture.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a developer opens the repository in a Dev Container
+When the container is built
+Then Rust, Cargo, rust-analyzer support, SQLite CLI, SQLite headers, and pkg-config are available
+And the developer can compile and test the project
+Given the application uses SQLite for local persistence
+When a developer runs the test suite in the container
+Then temporary SQLite databases and schema migrations can be created
+And the container requires no external database service
+Given the development container is recreated
+When the same repository is opened
+Then the toolchain and database prerequisites are reproducible from version-controlled configuration
+----
+
+== Dependencies
+- 0020 (Provide Local Persistence and Runtime)
