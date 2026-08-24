@@ -90,6 +90,7 @@ Our code follows:
 - SOLID principles
 - DRY, KISS
 - Ubiquitous Language from Domain-Driven Design (same terms in code as in the specification)
+- Maintainable file structure: production modules and tests are separated where practical. Keep source files at or below 500 lines as a soft guideline; files above that size should trigger a split review, with documented exceptions for genuinely cohesive modules.
 
 ## Quality Review
 

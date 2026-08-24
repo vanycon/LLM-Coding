@@ -37,3 +37,8 @@ Still required before closing the infrastructure and interface issues:
 * REST DTOs, role/error mapping, and HTTP integration tests;
 * technician CLI and cross-interface parity tests;
 * invariant, performance, and traceability test reporting.
+* review `src/domain/service.rs` for a further cohesive split; it currently exceeds the 500-line soft guideline and is tracked as technical debt rather than hidden behind generated or duplicated files.
+
+== Maintainability criterion
+
+Every implementation issue must leave a useful Rust file structure: crate roots remain thin, production concerns are split into cohesive modules, and tests live in dedicated test modules where practical. Keep source files at or below 500 lines as a soft guideline. A file above 500 lines should trigger a split review; retain it only when the module is genuinely cohesive and the exception is documented. `cargo fmt --check` and `cargo test` must remain green after structural changes.
