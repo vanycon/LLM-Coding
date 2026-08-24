@@ -1,3 +1,9 @@
 {
-  "asciidoc.extensions.enableKroki": true
+  "asciidoc.extensions.enableKroki": true,
+  "chat.tools.terminal.autoApprove": {
+    "cargo test": true,
+    "cargo fmt": true,
+    "sqlite3": true,
+    "cargo clean": true
+  }
 }

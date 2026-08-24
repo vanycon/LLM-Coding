@@ -1,0 +1,23 @@
+# Rust build artifacts
+/target/
+
+# Local application data
+*.db
+*.db-shm
+*.db-wal
+
+# Local environment files
+.env
+.env.*
+!.env.example
+
+# Operating system files
+.DS_Store
+
+# Editor temporary files
+*.swp
+*.swo
+*~
+
+# AI related files
+AGENT-HANDOFF.md

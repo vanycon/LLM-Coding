@@ -1,0 +1,39 @@
+= Leihgut Implementation Backlog
+
+This is the executable order for the issue files. An issue remains open until its acceptance criteria are covered by a passing test or interface check.
+
+== Dependency order
+
+. 0001 Catalog and Member Readiness (epic)
+. 0006 Model Catalog and Category Policy
+. 0007 Manage Member Readiness
+. 0008 Check Item Eligibility
+. 0009 Issue Item
+. 0010 Extend Loan
+. 0011 Return Item to Inspection
+. 0012 Inspect Returned Item
+. 0013 Record Deposits and Audit Trail
+. 0014 Maintenance and Recovery
+. 0015 Create and Resolve Holds
+. 0018 Enforce Atomicity and Time Boundaries
+. 0020 Provide Local Persistence and Runtime
+. 0016 Expose REST API Contracts
+. 0017 Provide Workshop Technician CLI
+. 0019 Verify Quality and Traceability
+. 0021 Define Rust and SQLite Development Container
+. 0002 Lending Lifecycle (epic closure)
+. 0003 Inspection, Deposits, and Recovery (epic closure)
+. 0004 Holds and Reservations (epic closure)
+. 0005 Interfaces, Atomicity, and Quality (epic closure)
+
+== Current implementation checkpoint
+
+The Rust domain library covers the core rules in 0006 through 0015 with service-level tests. The initial SQLite schema is present in `migrations/0001_initial.sql`.
+
+Still required before closing the infrastructure and interface issues:
+
+* transaction-backed repository and migration runner;
+* injected clock and rollback/concurrency tests;
+* REST DTOs, role/error mapping, and HTTP integration tests;
+* technician CLI and cross-interface parity tests;
+* invariant, performance, and traceability test reporting.
