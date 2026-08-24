@@ -1,0 +1,151 @@
+= Open Questions: Leihgut
+:toc:
+
+Phase 1 handoff. These are the `[OPEN]` leaves copied from `QUESTION_TREE.adoc`. They require stakeholder answers before Phase 2 documentation synthesis.
+
+== Product Owner
+
+=== Q1.5.a Which quantified business outcomes define success?
+
+[OPEN]
+Category: business-context
+Ask role: Product Owner
+
+The code states the problems and provides correctness rules, but it contains no agreed target for error reduction, checkout duration, audit completeness, or member satisfaction. What measurable business outcomes and target values define success for this context?
+
+=== Q1.6.a Which user segment has priority when needs conflict?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Product Owner
+
+The code names counter staff, members, and workshop staff but does not rank them when requirements conflict. Which segment is the primary release priority?
+
+=== Q2.5.b Are all intended acceptance criteria complete?
+
+[OPEN]
+Category: business-context
+Ask role: Product Owner
+
+The repository contains executable scenarios, but code alone cannot establish whether they cover every intended business rule or release criterion. Has the product owner accepted the current scenario set as complete?
+
+=== Q4.9 Which characteristic has priority?
+
+[OPEN]
+Category: quality-goals
+Ask role: Product Owner
+
+The source demonstrates functional, reliability, security, maintainability, and audit-related behavior but does not rank the ISO/IEC 25010 characteristics. Which quality characteristic has priority when trade-offs are necessary?
+
+== Architect
+
+=== Q3.9.b How should cross-capability calls be formalized if the context is split later?
+
+[OPEN]
+Category: design-rationale
+Ask role: Architect
+
+Reservation assignment is invoked directly from lending/maintenance services, and `Gegenstand` is mutated by several workflows. The code does not reveal whether these are intended shared-kernel relationships, domain events, or future anti-corruption-layer boundaries. Which integration style is the architectural target?
+
+=== Q5.1.b Which debt is intentional versus accidental?
+
+[OPEN]
+Category: design-rationale
+Ask role: Architect
+
+The code shows coupling and omitted abstractions but does not record which are deliberate MVP trade-offs and which are defects to remove. Which technical-debt items are accepted, and what is their repayment horizon?
+
+=== Q5.2.b What deployment exposure is acceptable?
+
+[OPEN]
+Category: quality-goals
+Ask role: Architect
+
+The source makes header-trusted roles acceptable for a local process but does not define the permitted network exposure or compensating controls. May this context be reachable from an untrusted network, and what security boundary is required?
+
+== Developer
+
+=== Q2.3.c Is a CLI interface implemented?
+
+[OPEN]
+Category: design-rationale
+Ask role: Developer
+
+The README promises a CLI for workshop tasks, and `pyproject.toml` lists Typer, but no CLI entry point is visible in `src/leihgut/`. Where is the supported CLI entry point and its command/error contract?
+
+=== Q2.6.b Can members cancel reservations?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+`VormerkungStatus` contains `MANUELL_ABGESAGT`, but the visible application service exposes creation and retrieval rather than a member cancellation operation. May members cancel their own open reservations, and under what conditions?
+
+=== Q3.8.e Is audit coverage complete for every state-changing use case?
+
+[OPEN]
+Category: design-rationale
+Ask role: Developer
+
+Audit writes are visible in several services, but code theory recovery cannot establish an intended completeness guarantee for every state change without a traceability rule or audit coverage test. Is every state-changing use case required to create an audit record, and which tests prove that?
+
+== Domain Expert
+
+=== Q2.1.b Where does member blocking originate?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+`mitglied_gesperrt` is checked by `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, `verlaengerung_service.py::_verlaengerung_validieren`, and `vormerkung_service.py`; no source anchor defines who sets it or the blocking rule. What system or business event supplies the member-blocked status?
+
+=== Q3.12.b What does "gesperrt" mean in the member domain?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+The lending model stores and checks `mitglied_gesperrt`, but the source does not define the business meaning, trigger, duration, or clearing rule of a blocked member. What is the precise domain definition of "gesperrt"?
+
+== Operations
+
+=== Q3.7.b How are startup, database location, backup, and shutdown operated?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+The source establishes a local process and SQLite but does not define an operational runbook, supported startup command, database backup procedure, shutdown behavior, or deployment environment. What operational procedure is the supported one?
+
+=== Q3.11.b What operational and capacity risks remain unquantified?
+
+[OPEN]
+Category: quality-goals
+Ask role: Operations
+
+The code does not establish expected throughput, latency, database growth limits, backup recovery objectives, retention scheduling, or alerting. What operational targets and failure procedures must this context meet?
+
+=== Q5.3.b How is retention cleanup operated?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+`cleanup_audit_log` exists, but code does not state whether it is called manually, scheduled, or supervised. Who triggers retention cleanup, and what happens when it fails?
+
+=== Q5.4.b What update and pinning policy applies?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+`pyproject.toml` declares dependency ranges but the source tree does not define a lock/update policy or approved artifact source. Which Python and dependency versions are supported in production, and how are updates reviewed?
+
+=== Q5.5.b What load and recovery targets must be met?
+
+[OPEN]
+Category: quality-goals
+Ask role: Operations
+
+The code does not define expected concurrent users, operation volume, latency, maximum database size, recovery point objective, or recovery time objective. What capacity and recovery targets should govern this bounded context?
+

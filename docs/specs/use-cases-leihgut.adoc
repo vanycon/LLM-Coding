@@ -1,0 +1,187 @@
+= Use-Case and Interface Specification: Leihgut
+:toc:
+:toclevels: 4
+
+== Scope
+
+This specification describes the user-goal use cases and technical REST boundary recovered for the Leihgut bounded context. The application services expose catalog maintenance, availability, checkout, return, extension, inspection, training, reservation, loss, maintenance, and audit-retention/statistics operations. Evidence: application services under `src/leihgut/anwendungskern/`, especially `katalog_service.py`, `verfuegbarkeit_service.py`, `ausleihe_service.py`, `verlaengerung_service.py`, `pruefung_service.py`, `einweisung_service.py`, `vormerkung_service.py`, `verlust_service.py`, `wartung_service.py`, and `audit_retention_service.py`.
+
+== Actors
+
+* Counter worker: checkout and return. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben` and `::gegenstand_zuruecknehmen`.
+* Member: availability and reservation. Evidence: `src/leihgut/anwendungskern/verfuegbarkeit_service.py::verfuegbarkeit_pruefen` and `src/leihgut/anwendungskern/vormerkung_service.py::vormerkung_erfassen`.
+* Workshop worker: inspection, maintenance, training, and loss. Evidence: `src/leihgut/anwendungskern/pruefung_service.py::pruefung_abschliessen`, `wartung_service.py::wartung_abschliessen`, `einweisung_service.py::einweisung_erfassen`, and `verlust_service.py::verlust_erfassen`.
+* Administrator: audit-log administration at the REST boundary. Evidence: `src/leihgut/adapters/rest/app.py` endpoint guards.
+
+== Persona use cases
+
+The following are at user-goal level. The source does not provide stakeholder interests beyond the named operations, so those fields state only the observable concern.
+
+=== Lend an item
+
+Primary Actor:: Counter worker.
+Trigger:: The counter worker requests checkout of an item for a member.
+Stakeholders & Interests:: The counter worker needs an allowed checkout and the member receives the item with the calculated deposit. The README describes the error-prevention goal: `README.adoc` ("Worum es geht").
+Preconditions:: The item, category, and member loan data are available; checkout validation can inspect item state, member loan count/block status, training, and reservations. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`.
+Main Success Scenario:: The service validates checkout, calculates the deposit, creates the loan, updates item state, and records the operation. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`.
+Extensions:: Item not found; item unavailable; member blocked; loan limit reached; required training missing; or a concurrent active loan is rejected by the persistence invariant. Evidence: imported service errors in `src/leihgut/adapters/rest/app.py` and `ux_ausleihe_aktiv_je_gegenstand` in `src/leihgut/adapters/persistence/schema.sql`.
+Postconditions:: An `Ausleihe` is created and the item is no longer available for an overlapping active loan. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben` and `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand`.
+Business Rules:: Item must be available; at most three active loans per member; member must not be blocked; required training must exist; deposit is 20% of replacement value bounded by 5 and 100 euros. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen` and `src/leihgut/domain/kaution.py::kaution_berechnen`.
+
+=== Return an item
+
+Primary Actor:: Counter worker.
+Trigger:: The counter worker records return of an active loan.
+Stakeholders & Interests:: The item must enter inspection rather than being immediately closed. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_zuruecknehmen`.
+Preconditions:: The loan exists and has not already been returned. Evidence: service errors in `src/leihgut/anwendungskern/ausleihe_service.py`.
+Main Success Scenario:: The service marks the loan returned and coordinates the next reservation-related action. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_zuruecknehmen`.
+Extensions:: Loan not found or already returned. Evidence: `src/leihgut/adapters/rest/app.py` error mapping for the return endpoint.
+Postconditions:: The loan is in the returned/inspection path. Evidence: `AusleiheZustand` in `src/leihgut/domain/ausleihe.py` and `gegenstand_zuruecknehmen`.
+Business Rules:: Inspection is required before closure. Evidence: `src/leihgut/anwendungskern/pruefung_service.py::_pruefung_pruefen`.
+
+=== Extend a loan
+
+Primary Actor:: Counter worker.
+Trigger:: The counter worker requests an extension for an existing loan.
+Stakeholders & Interests:: The loan may be extended only while its lending rules permit it.
+Preconditions:: The loan exists, is not overdue, is not already extended, and the member is not blocked. Evidence: `src/leihgut/anwendungskern/verlaengerung_service.py::_verlaengerung_validieren`.
+Main Success Scenario:: The service validates and updates the loan return deadline. Evidence: `src/leihgut/anwendungskern/verlaengerung_service.py::ausleihe_verlaengern`.
+Extensions:: Loan not found; overdue; already extended; member blocked; or an open reservation blocks extension. Evidence: `src/leihgut/adapters/rest/app.py` extension error mapping.
+Postconditions:: The loan deadline is updated and the extension state is recorded. Evidence: `src/leihgut/anwendungskern/verlaengerung_service.py::ausleihe_verlaengern`.
+Business Rules:: An overdue loan or an already extended loan cannot be extended. Evidence: `src/leihgut/anwendungskern/verlaengerung_service.py::_verlaengerung_validieren`.
+
+=== Complete inspection
+
+Primary Actor:: Workshop worker.
+Trigger:: The workshop worker submits a post-return inspection.
+Stakeholders & Interests:: The item state and deposit outcome reflect inspection results.
+Preconditions:: The loan is in the inspection state and the deduction does not exceed the deposit. Evidence: `src/leihgut/anwendungskern/pruefung_service.py::_pruefung_pruefen`.
+Main Success Scenario:: The service determines the next item state, creates an inspection report and deposit movement, and completes the loan. Evidence: `src/leihgut/anwendungskern/pruefung_service.py::pruefung_abschliessen`.
+Extensions:: Loan not found; loan not in inspection; deduction exceeds deposit. Evidence: `src/leihgut/adapters/rest/app.py` inspection error mapping.
+Postconditions:: A `Pruefprotokoll` exists, the deposit movement is recorded, and the item receives its calculated next state. Evidence: `src/leihgut/domain/pruefprotokoll.py`, `src/leihgut/domain/kautionsbewegung.py`, and `src/leihgut/anwendungskern/pruefung_service.py::_folgezustand_bestimmen`.
+Business Rules:: A deduction cannot exceed the deposited amount; wear can make an item maintenance-due; defects are represented by `MaengelEintrag`. Evidence: `src/leihgut/anwendungskern/pruefung_service.py` and `src/leihgut/domain/maengel.py`.
+
+=== Maintain an item
+
+Primary Actor:: Workshop worker.
+Trigger:: The workshop worker completes maintenance for a maintenance-due item.
+Stakeholders & Interests:: The item becomes available after maintenance and its usage counter is reset.
+Preconditions:: The item is maintenance-due. Evidence: `src/leihgut/anwendungskern/wartung_service.py::_wartung_pruefen`.
+Main Success Scenario:: The service completes maintenance, resets the usage counter, and checks reservation assignment. Evidence: `src/leihgut/anwendungskern/wartung_service.py::wartung_abschliessen`.
+Extensions:: Item not found or not maintenance-due. Evidence: `src/leihgut/adapters/rest/app.py` maintenance error mapping.
+Postconditions:: The item is available with a reset usage counter, subject to reservation handling. Evidence: `src/leihgut/anwendungskern/wartung_service.py::wartung_abschliessen`.
+Business Rules:: Maintenance resets `nutzungszaehler`; an existing reservation can be assigned after maintenance. Evidence: `src/leihgut/anwendungskern/wartung_service.py`.
+
+=== Record loss
+
+Primary Actor:: Workshop worker.
+Trigger:: The workshop worker records that an active loaned item is lost.
+Stakeholders & Interests:: The loan closes as lost and the deposit ledger records the loss charge.
+Preconditions:: The loan is active and its item exists. Evidence: `src/leihgut/anwendungskern/verlust_service.py::verlust_erfassen`.
+Main Success Scenario:: The service marks the loan lost and creates a `VERLUST_EINZUG` deposit movement. Evidence: `src/leihgut/anwendungskern/verlust_service.py::verlust_erfassen` and `src/leihgut/domain/kautionsbewegung.py`.
+Extensions:: Loan not found, loan not active, or item not found. Evidence: `src/leihgut/adapters/rest/app.py` loss error mapping.
+Postconditions:: The loan is `ABGESCHLOSSEN_VERLOREN` and the loss deposit movement exists. Evidence: `AusleiheZustand` in `src/leihgut/domain/ausleihe.py` and `verlust_erfassen`.
+Business Rules:: Loss is permitted only for an active loan and triggers a deposit write-off. Evidence: `src/leihgut/anwendungskern/verlust_service.py`.
+
+=== Register or revoke training
+
+Primary Actor:: Workshop worker.
+Trigger:: The workshop worker registers or revokes member/category training.
+Stakeholders & Interests:: A member has at most one valid training record for a category and can be prevented from lending without it.
+Preconditions:: The category exists for registration; the training exists and has not already been revoked for revocation. Evidence: `src/leihgut/anwendungskern/einweisung_service.py`.
+Main Success Scenario:: Registration creates an `Einweisung`; revocation records `widerrufen_am`. Evidence: `src/leihgut/anwendungskern/einweisung_service.py::einweisung_erfassen` and `::einweisung_widerrufen`.
+Extensions:: Duplicate training, category not found, training not found, or already revoked. Evidence: `src/leihgut/adapters/rest/app.py` training error mapping.
+Postconditions:: The training is valid until revoked; revocation is timestamped. Evidence: `src/leihgut/domain/einweisung.py::ist_gueltig`.
+Business Rules:: At most one valid training exists per member/category. Evidence: `ux_einweisung_gueltig_je_mitglied_kategorie` in `src/leihgut/adapters/persistence/schema.sql`.
+
+=== Manage a reservation
+
+Primary Actor:: Member.
+Trigger:: The member requests a category reservation or retrieves reservations.
+Stakeholders & Interests:: The member receives FIFO treatment and cannot create duplicate open reservations.
+Preconditions:: The category exists and the member is not blocked. Evidence: `src/leihgut/anwendungskern/vormerkung_service.py`.
+Main Success Scenario:: The service validates uniqueness, calculates FIFO position, and creates or retrieves a `Vormerkung`. Evidence: `src/leihgut/anwendungskern/vormerkung_service.py::vormerkung_erfassen`, `::vormerkung_abrufen`, and `::_reihenfolge_berechnen`.
+Extensions:: Duplicate open reservation, blocked member, category not found, or reservation not found. Evidence: `src/leihgut/adapters/rest/app.py` reservation error mapping.
+Postconditions:: An open reservation has a category sequence position. Evidence: `src/leihgut/domain/vormerkung.py` and `vormerkung_service.py`.
+Business Rules:: At most one open reservation exists per member/category; order is FIFO. Evidence: `ux_vormerkung_offen_je_mitglied_kategorie` in `schema.sql` and `_reihenfolge_berechnen`.
+
+=== Maintain the catalog
+
+Primary Actor:: Workshop worker.
+Trigger:: The workshop worker creates or changes a category or item.
+Stakeholders & Interests:: The catalog contains valid, uniquely identified items and usable lending rules.
+Preconditions:: Category durations/intervals and item replacement value pass validation; inventory number is unique. Evidence: `src/leihgut/anwendungskern/katalog_service.py::_kategorie_werte_pruefen`, `::_wiederbeschaffungswert_pruefen`, and `schema.sql`.
+Main Success Scenario:: The service creates or updates categories and items. Evidence: `src/leihgut/anwendungskern/katalog_service.py::kategorie_anlegen`, `::kategorie_aendern`, `::gegenstand_anlegen`, and `::gegenstand_wert_aendern`.
+Extensions:: Category not found, duplicate inventory number, or invalid value. Evidence: `src/leihgut/adapters/rest/app.py` catalog error mapping.
+Postconditions:: Catalog entities are stored with valid values. Evidence: `src/leihgut/adapters/persistence/schema.sql` CHECK and primary-key constraints.
+Business Rules:: Lending duration, maintenance interval, and replacement value must be positive; inventory numbers are unique; deposit calculation is bounded. Evidence: `katalog_service.py` validation functions and `src/leihgut/domain/kaution.py::kaution_berechnen`.
+
+== System interface specification
+
+=== REST API
+
+Input and validation:: HTTP requests use Pydantic request models in `src/leihgut/adapters/rest/schemas.py`. Endpoints first validate the role with `erfordere_rolle`, then call an application service. Evidence: `src/leihgut/adapters/rest/app.py` and `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`.
+Processing:: The endpoint invokes an injected application service, which uses repository ports and returns a domain result or error. Evidence: `src/leihgut/adapters/rest/app.py::create_app` and the application services under `src/leihgut/anwendungskern/`.
+Output and status codes:: Successful operations include 201 Created and 204 No Content. Error responses include 403 Forbidden, 404 Not Found, 409 Conflict, and 422 Unprocessable Entity. Evidence: HTTP mappings in `src/leihgut/adapters/rest/app.py`.
+Error responses:: Observable errors include unavailable item, duplicate reservation, overdue loan, missing training, invalid value, and excessive deposit deduction. Evidence: imported exception classes and endpoint handlers in `app.py`.
+
+=== CLI
+
+Input, processing, and output:: The README specifies a CLI for workshop tasks, but no CLI entry point or command contract is present in `src/leihgut/`; Typer is listed in `pyproject.toml`. This interface remains an explicit implementation gap.
+
+=== Clock port
+
+Input and validation:: The application accepts an optional `Clock` implementation.
+Processing:: `SystemClock` supplies production time; tests inject a fake clock.
+Output:: The port supplies the current time to deadline and timestamp logic. Evidence: `src/leihgut/ports/clock.py`, `src/leihgut/adapters/system_clock.py::SystemClock`, `tests/fakes.py`, and dependency injection in `src/leihgut/adapters/rest/app.py::create_app`.
+
+=== Repository ports
+
+Input and validation:: Application services depend on Protocol interfaces in `src/leihgut/ports/`.
+Processing:: SQLite repository adapters implement persistence for domain records and transactions.
+Output and errors:: Repository operations return domain objects/results or propagate persistence errors handled by the application/REST boundary. Evidence: `src/leihgut/ports/` and `src/leihgut/adapters/persistence/`.
+
+== Supplementary specifications
+
+=== Entity model
+
+The domain modules define `Gegenstand`, `Ausleihe`, `Kategorie`, `Kaution`, `Kautionsbewegung`, `Einweisung`, `Vormerkung`, `Pruefprotokoll`, `MaengelEintrag`, and `AuditLogEintrag`. Persistence relationships and constraints are in `src/leihgut/adapters/persistence/schema.sql`.
+
+=== State machines
+
+`GegenstandZustand` models available, loaned, inspection, maintenance-due, reserved, and written-off states. `AusleiheZustand` models active, returned, completed, and lost-completion states. Evidence: `src/leihgut/domain/gegenstand.py::GegenstandZustand` and `src/leihgut/domain/ausleihe.py::AusleiheZustand`.
+
+=== Validation rules
+
+Checkout validates item availability, member loan limit/block status, training, and related reservation conditions. Extension validates overdue and prior-extension state. Deposit calculation is 20% of replacement value bounded by 5 and 100 euros. Reservation uniqueness and FIFO are enforced by application logic and database indexes. Evidence: `ausleihe_service.py::_ausgabe_pruefen`, `verlaengerung_service.py::_verlaengerung_validieren`, `kaution.py::kaution_berechnen`, `vormerkung_service.py::_reihenfolge_berechnen`, and indexes in `schema.sql`.
+
+=== Acceptance criteria
+
+The executable scenarios are grouped by epic: `tests/test_epic_a_ausleihe.py`, `test_epic_a2_verlaengerung.py`, `test_epic_b_pruefung_kaution.py`, `test_epic_c_einweisung.py`, `test_epic_d_katalog.py`, `test_epic_d_katalog_pflegen.py`, `test_epic_e_vormerkung.py`, `test_epic_f_verlust.py`, `test_epic_g_wartung.py`, and `test_epic_maintenance_audit_retention.py`. The test module docstrings and names provide use-case traceability.
+
+==== Gherkin acceptance scenarios
+
+[source,gherkin]
+----
+Feature: Enforce lending invariants
+  Scenario: Reject checkout of an unavailable item
+    Given an item is not available
+    When checkout is requested
+    Then the application returns the unavailable-item error
+
+  Scenario: Reject a second active loan for one item
+    Given an active loan already exists for the item
+    When another active loan is created
+    Then the persistence invariant rejects it
+
+  Scenario: Reject an excessive inspection deduction
+    Given the deduction exceeds the stored deposit
+    When inspection is completed
+    Then the application returns the excessive-deduction error
+----
+
+These scenarios restate observable acceptance behavior from `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand`, and `src/leihgut/anwendungskern/pruefung_service.py::_pruefung_pruefen`.
+
+== Unresolved specification gaps
+
+No team answers or `(deferred)` markers are present. The source does not settle the member-blocking source and semantics, member reservation cancellation, CLI command contract, or completeness of acceptance coverage.

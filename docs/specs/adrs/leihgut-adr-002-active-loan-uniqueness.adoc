@@ -1,0 +1,28 @@
+= ADR-002: Database Uniqueness for Active Loans
+
+== Status
+
+Accepted in the current implementation.
+
+== Context
+
+Two concurrent attempts must not create active loans for the same item. The schema defines a partial unique index on `gegenstand_id` where the loan state is active, and the SQLite loan repository uses an explicit transaction/check-then-act path. Evidence: `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand` and `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+== Decision
+
+Enforce the one-active-loan-per-item invariant in the database with `ux_ausleihe_aktiv_je_gegenstand`, in addition to application-level validation and the repository transaction path.
+
+== Consequences
+
+The invariant remains protected below the application layer, including against a race between application checks. A database-specific constraint and its error handling remain part of the persistence adapter contract.
+
+== Pugh Matrix
+
+Scale: -1 = worse against the quality goal, 0 = neutral, +1 = better. Phase 1 records no alternatives or scores for this decision, so no historical comparison is asserted here.
+
+[cols="2,1,1,1,1", options="header"]
+|===
+|Alternative | Reliability | Functional suitability | Maintainability | Portability
+|No alternative recorded in Phase 1 | not assessed | not assessed | not assessed | not assessed
+|Chosen database uniqueness decision | not assessed | not assessed | not assessed | not assessed
+|===

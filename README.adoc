@@ -77,3 +77,172 @@ Rahmenbedingungen, Release-Umfang und Glossar.
 
 Weitere Dokumentation (Spezifikation, Architektur, ADRs) entsteht im Verlauf der Übung unterhalb
 von `src/docs/`.
+
+== Prompt History Phase 2
+
+* Analyze the codebase in src/. Identify bounded contexts using Domain-Driven Design.
+For each context, list: name, responsibility, key entities, interfaces to other contexts. Present as a table.
+* See: 
+```markdown
+  You are performing Socratic Code-Theory Recovery on a brownfield bounded
+  context located at [bounded context path]. Phase 1 of two.
+
+  Goal: recover the program's theory (Naur, 1985) from source code through
+  recursive question refinement, before any documentation is written.
+
+  Process:
+
+  1. Start with five root questions about the bounded context:
+    Q1 What problem does this bounded context solve, and for whom?
+    Q2 What is the specification of this bounded context?
+    Q3 What is the architecture of this bounded context?
+    Q4 What quality goals drive the design?
+    Q5 What risks and technical debt exist?
+
+  2. The second level of the tree is FIXED, not free. Emit exactly these
+    nodes, in this order, even when a node's only leaf is [OPEN] or
+    [ANSWERED: not applicable]:
+      Q1.1-Q1.6  product identity, primary users, channels, why-built,
+                  success metrics, segment priority
+      Q2.1-Q2.6  actors, use-case catalog, per-interface system specs,
+                  data/entity model, acceptance criteria, cross-cutting
+                  business rules
+      Q3.1-Q3.12 the twelve arc42 chapters, in arc42 order
+      Q4.1-Q4.8  the eight ISO/IEC 25010 characteristics;
+      Q4.9       which characteristic has priority
+      Q5.1-Q5.5  technical debt, security risks, operational risks,
+                  dependency/supply-chain risks, scaling/performance risks
+
+  3. Below the fixed second level, decompose freely and code-driven. Stop
+    when a leaf is small enough to answer from a single piece of code
+    evidence, or to pose as a single precise question to a stakeholder.
+    Third-level depth varies between runs — that is expected. Q-IDs are
+    stable: Q3.7 is always the Deployment View, in every run, so trees
+    from different runs can be diffed node-by-node.
+
+  4. For each leaf, classify it:
+
+    [ANSWERED]
+      - You found the answer in the code.
+      - Cite the evidence as <file>:<line> or <file>::<function>.
+      - Be exact. No "see X for details."
+
+    [OPEN]
+      - The answer is not derivable from code alone.
+      - Category: business-context | design-rationale | quality-goals |
+                  stakeholder-context | future-direction
+      - Ask role: Product Owner | Architect | Developer | Domain Expert |
+                  Operations
+      - State precisely what cannot be answered, and why.
+
+    Quality (the Q4 branch) is not wholly team knowledge. Where the code
+    shows measurable behaviour — a timeout, a truncation limit, a budget,
+    a retry policy, the threats and test concept from Q3.8 — write it as
+    an [ANSWERED] quality scenario with file:line. Never invent a target
+    number. Only the quality-goal ranking (Q4.9) is [OPEN].
+
+  5. Output two files in AsciiDoc:
+
+    QUESTION_TREE.adoc
+      - Full hierarchical tree with all nodes and Q-IDs
+      - Each leaf marked [ANSWERED] (with evidence) or [OPEN] (with Category
+        and Ask role)
+      - Includes all reasoning, not only the leaves
+
+    OPEN_QUESTIONS.adoc
+      - Only the [OPEN] leaves, copied verbatim from QUESTION_TREE.adoc
+      - Always one section per Ask role (Product Owner, Architect,
+        Developer, Domain Expert, Operations) — emit every section even
+        when it is empty ("No open questions for this role")
+      - Each question short enough to be answered in 1-3 sentences
+
+  Do not write any other documentation in this phase. Phase 2 will synthesize
+  the answered tree into PRD, specification, arc42, and ADRs — only after the
+  team has filled in the [OPEN] leaves.
+```
+* See:
+```markdown
+  You are performing Phase 2 of Socratic Code-Theory Recovery.
+
+  Inputs:
+  - QUESTION_TREE-[context-name].adoc — the answered Question Tree from
+    Phase 1.
+  - OPEN_QUESTIONS-[context-name].adoc — same OPEN leaves, now with team
+    answers (or (deferred) markers) written under each question.
+
+  Goal: synthesize documentation from the answered tree. Every claim must
+  trace back to a tree leaf — this is a build-time check, not a Q-ID stamped
+  into the text; Q-IDs do NOT appear in the final documents (see Rules for
+  traceability below). Team-supplied facts must be marked (team answer).
+  Anything still marked (deferred) must remain an explicit gap in the output,
+  not be filled with invention.
+
+  Produce four artifacts:
+
+  1. docs/specs/prd-[context-name].adoc — Product Requirements Document
+    - Problem statement, target users, goals, success criteria, scope
+      boundaries, constraints, open questions
+    - Source: Q1 branch of QUESTION_TREE-[context-name].adoc
+    - Anchor: PRD (Cagan / Pichler)
+
+  2. docs/specs/use-cases-[context-name].adoc — Specification
+    - Persona Use Cases in Cockburn Fully Dressed format at User Goal level:
+      Primary Actor, Trigger, Stakeholders & Interests, Preconditions,
+      Main Success Scenario, Extensions, Postconditions, Business Rules.
+    - System Use Cases for each technical interface (API endpoint, CLI
+      command, event, file format): input + validation, processing,
+      output + status codes, error responses.
+    - Supplementary Specifications: Entity Model, State Machines, Interface
+      Contracts, Validation Rules.
+    - Gherkin acceptance criteria where applicable.
+    - Source: Q2 branch of QUESTION_TREE-[context-name].adoc
+    - Anchor: Cockburn Use Cases
+
+  3. docs/arc42/arc42-[context-name].adoc — Architecture
+    - All 12 arc42 chapters. Mark chapters with no content as
+      "No information from Phase 1" rather than fabricating content.
+    - Chapter 10 (Quality Requirements) is an exception: synthesize it
+      from the [ANSWERED] Q4 quality scenarios plus the Q4.9 ranking. It
+      is never just an [OPEN] pointer. Reuse evidence already in Q3.8 —
+      Security scenarios cite the STRIDE T-IDs, Maintainability scenarios
+      the test concept. Only the goal ranking stays [OPEN]; "No
+      information" is legitimate here only if Q4 produced no answered
+      scenario at all.
+    - Source: Q3 branch of QUESTION_TREE-[context-name].adoc
+    - Anchor: arc42 (Starke / Hruschka)
+
+  4. docs/specs/adrs/[context-name]-adr-NNN-*.adoc — one ADR per
+    significant design decision. The context-name prefix keeps ADRs from
+    different bounded contexts from colliding in the shared adrs/ folder.
+    - Nygard format: Title, Status, Context, Decision, Consequences.
+    - Include a Pugh Matrix listing the alternatives considered with a
+      3-point scale (-1, 0, +1) against the quality goals from Q4.
+    - Source: Q3.9 branch of QUESTION_TREE-[context-name].adoc
+    - Anchor: ADR according to Nygard
+
+  Rules for traceability:
+  - The synthesized documentation must be self-contained. The Question Tree
+    is a temporary intermediate artifact — its fixed second level is stable,
+    but third-level Q-IDs are run-specific and the tree is not shipped — so
+    Q-IDs must NOT appear in the output. While synthesizing, trace every
+    claim back to a leaf: each claim must come from an [ANSWERED] leaf or an
+    answered [OPEN] leaf. This tracing is a build-time check, not something
+    written into the documents.
+  - A claim backed by an [ANSWERED] leaf cites the code evidence from that
+    leaf — the reference to the code, the only durable, canonical artifact:
+    "The system uses Hexagonal Architecture [src/app/Ports.java,
+    src/adapter/JpaOrderRepository.java:30]."
+    Copy the Evidence line verbatim from the leaf; do not invent, shorten,
+    or re-derive file paths. A leaf with no Evidence line is not [ANSWERED]
+    and must not be cited as fact.
+  - Team-supplied facts have no code evidence — mark them (team answer):
+    "Sessions expire after 24 hours (team answer)."
+  - Deferred questions stay as explicit gaps: "Quality-goal priorities are
+    deferred and must be resolved before the next release."
+  - Do not introduce facts that do not appear in
+    QUESTION_TREE-[context-name].adoc or OPEN_QUESTIONS-[context-name].adoc.
+    If a Section feels under-specified, leave it
+    under-specified — that is signal, not a defect.
+```
+* Please do a Code-Review, a Security-Review, a Maintainability-Review and a ATAM-Review. Use sub-agents to split!
+Let the agents create markdown files on root with findings.

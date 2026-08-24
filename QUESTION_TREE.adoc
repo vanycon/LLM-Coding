@@ -1,0 +1,479 @@
+= Socratic Code-Theory Recovery: Leihgut
+:toc:
+:toclevels: 4
+
+Phase 1 of 2. This tree recovers the current theory of the bounded context from source code. It does not prescribe a future architecture. The bounded-context path used here is `src/leihgut/`; the repository is a modular monolith, so the boundaries below are inferred from responsibility and dependencies, not enforced as deployable services.
+
+== Scope and reading rules
+
+The recovered context is **Leihgut**, a local tool-lending system. `src/leihgut/` contains catalog, lending, inspection, deposit, training, reservation, maintenance, loss, audit, REST, SQLite, and clock concerns. `mitglied_id` is represented as text and member management is outside the code boundary: `src/leihgut/adapters/persistence/schema.sql` (comments before `einweisung`).
+
+An `[ANSWERED]` leaf is grounded in one or more exact source anchors. An `[OPEN]` leaf records a question that code alone cannot settle. The latter is intentionally not converted into a design assumption.
+
+== Q1 What problem does this bounded context solve, and for whom?
+
+=== Q1.1 Product identity
+
+==== Q1.1.a What product is implemented?
+
+[ANSWERED]
+
+The product is a "Bibliothek der Dinge" for lending tools and equipment. The README identifies approximately 400 items and 800 members and names lending, deposits, maintenance, and reservations as the problem domain: `README.adoc` ("Worum es geht").
+
+==== Q1.1.b What distinguishes this domain from ordinary lending?
+
+[ANSWERED]
+
+Items have a lifecycle with maintenance and write-off states; a deposit is collateral; and training is attached to a member and category. The item states are encoded by `GegenstandZustand` in `src/leihgut/domain/gegenstand.py::GegenstandZustand`; the domain distinctions are stated in `README.adoc` ("Warum das mehr ist als eine Bücherei").
+
+=== Q1.2 Primary users
+
+==== Q1.2.a Who operates the system?
+
+[ANSWERED]
+
+The README names Karim, the counter worker; Sabine, the member; and Rolf, the workshop worker: `README.adoc` ("Personas"). REST role checks are implemented by `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`.
+
+==== Q1.2.b Which actor performs which work?
+
+[ANSWERED]
+
+Counter work is checkout and return (`src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`, `::gegenstand_zuruecknehmen`). Member-facing work includes availability and reservation (`src/leihgut/anwendungskern/verfuegbarkeit_service.py::verfuegbarkeit_pruefen`, `src/leihgut/anwendungskern/vormerkung_service.py::vormerkung_erfassen`). Workshop work includes inspection, maintenance, training, and loss (`src/leihgut/anwendungskern/pruefung_service.py::pruefung_abschliessen`, `wartung_service.py::wartung_abschliessen`, `einweisung_service.py::einweisung_erfassen`, `verlust_service.py::verlust_erfassen`).
+
+=== Q1.3 Channels
+
+==== Q1.3.a Which channels cross the system boundary?
+
+[ANSWERED]
+
+The README specifies a REST API and a CLI for workshop tasks, with no web UI: `README.adoc` ("Rahmenbedingungen"). The implemented HTTP adapter is `src/leihgut/adapters/rest/app.py`; role information enters through the `X-Rolle` header in `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`.
+
+==== Q1.3.b Is identity/authentication part of this context?
+
+[ANSWERED]
+
+No real login is implemented or required by the stated boundary. The README says roles are supplied by a header or CLI flag and are not checked as authentication: `README.adoc` ("Rahmenbedingungen").
+
+=== Q1.4 Why it was built
+
+==== Q1.4.a Which failures is the system intended to prevent?
+
+[ANSWERED]
+
+The README identifies wrong deposit refunds, lending maintenance-due items, and reservation violations caused by extensions: `README.adoc` ("Worum es geht"). The implementation addresses these through deposit calculation (`src/leihgut/domain/kaution.py::kaution_berechnen`), item-state validation (`src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`), and extension validation (`src/leihgut/anwendungskern/verlaengerung_service.py::_verlaengerung_validieren`).
+
+=== Q1.5 Success metrics
+
+==== Q1.5.a Which quantified business outcomes define success?
+
+[OPEN]
+Category: business-context
+Ask role: Product Owner
+
+The code states the problems and provides correctness rules, but it contains no agreed target for error reduction, checkout duration, audit completeness, or member satisfaction. What measurable business outcomes and target values define success for this context?
+
+=== Q1.6 Segment priority
+
+==== Q1.6.a Which user segment has priority when needs conflict?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Product Owner
+
+The code names counter staff, members, and workshop staff but does not rank them when requirements conflict. Which segment is the primary release priority?
+
+== Q2 What is the specification of this bounded context?
+
+=== Q2.1 Actors
+
+==== Q2.1.a Which technical roles are accepted?
+
+[ANSWERED]
+
+The adapter accepts role values for endpoint guards; the guard is centralized in `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`. Endpoint-specific dependencies in `src/leihgut/adapters/rest/app.py` use `admin`, `wart`, `member`, and counter-facing guards.
+
+==== Q2.1.b Where does member blocking originate?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+`mitglied_gesperrt` is checked by `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, `verlaengerung_service.py::_verlaengerung_validieren`, and `vormerkung_service.py`; no source anchor defines who sets it or the blocking rule. What system or business event supplies the member-blocked status?
+
+=== Q2.2 Use-case catalog
+
+==== Q2.2.a What use cases are implemented?
+
+[ANSWERED]
+
+The application services expose: catalog maintenance (`katalog_service.py::kategorie_anlegen`, `::kategorie_aendern`, `::gegenstand_anlegen`, `::gegenstand_wert_aendern`); availability (`verfuegbarkeit_service.py::verfuegbarkeit_pruefen`); checkout and return (`ausleihe_service.py::gegenstand_ausgeben`, `::gegenstand_zuruecknehmen`); extension (`verlaengerung_service.py::ausleihe_verlaengern`); inspection (`pruefung_service.py::pruefung_abschliessen`); training register/revoke (`einweisung_service.py::einweisung_erfassen`, `::einweisung_widerrufen`); reservation (`vormerkung_service.py::vormerkung_erfassen`, `::vormerkung_abrufen`); loss (`verlust_service.py::verlust_erfassen`); maintenance (`wartung_service.py::wartung_abschliessen`); and audit retention/statistics (`audit_retention_service.py::cleanup_audit_log`, `::get_audit_log_stats`).
+
+==== Q2.2.b Is extension a separate context?
+
+[ANSWERED]
+
+No separate domain model or repository exists for extension. `src/leihgut/anwendungskern/verlaengerung_service.py::ausleihe_verlaengern` validates and updates `Ausleihe`, so it is a lending capability within this bounded context.
+
+=== Q2.3 Per-interface system specifications
+
+==== Q2.3.a What external system interface is implemented?
+
+[ANSWERED]
+
+The REST adapter in `src/leihgut/adapters/rest/app.py` maps HTTP endpoints to application services, validates request schemas from `schemas.py`, checks roles, and maps domain/application errors to HTTP responses. The endpoint declarations and error mapping functions in `app.py` define the implemented interface.
+
+==== Q2.3.b What status/error contract is observable?
+
+[ANSWERED]
+
+`src/leihgut/adapters/rest/app.py` maps successful operations to responses including 201 and 204, and failures including 403, 404, 409, and 422. The imported exception classes and endpoint handlers define domain errors such as unavailable item, duplicate reservation, overdue loan, missing training, and excessive deposit deduction.
+
+==== Q2.3.c Is a CLI interface implemented?
+
+[OPEN]
+Category: design-rationale
+Ask role: Developer
+
+The README promises a CLI for workshop tasks, and `pyproject.toml` lists Typer, but no CLI entry point is visible in `src/leihgut/`. Where is the supported CLI entry point and its command/error contract?
+
+=== Q2.4 Data/entity model
+
+==== Q2.4.a What are the core entities and values?
+
+[ANSWERED]
+
+The domain modules define `Gegenstand`, `Ausleihe`, `Kategorie`, `Kaution`, `Kautionsbewegung`, `Einweisung`, `Vormerkung`, `Pruefprotokoll`, `MaengelEintrag`, and `AuditLogEintrag`: `src/leihgut/domain/`. Their persistence relationships and constraints are defined in `src/leihgut/adapters/persistence/schema.sql`.
+
+==== Q2.4.b What lifecycle invariants control lending?
+
+[ANSWERED]
+
+`GegenstandZustand` models available, loaned, inspection, maintenance-due, reserved, and written-off states: `src/leihgut/domain/gegenstand.py::GegenstandZustand`. `AusleiheZustand` models active, returned, completed, and lost completion states: `src/leihgut/domain/ausleihe.py::AusleiheZustand`; overdue means active and past the return deadline in `Ausleihe::ist_ueberfaellig`.
+
+==== Q2.4.c Which persistence invariants are enforced below the application layer?
+
+[ANSWERED]
+
+`schema.sql` enforces one active loan per item with `ux_ausleihe_aktiv_je_gegenstand`, one valid training per member/category with `ux_einweisung_gueltig_je_mitglied_kategorie`, one open reservation per member/category with `ux_vormerkung_offen_je_mitglied_kategorie`, positive values with CHECK constraints, and audit immutability with UPDATE/DELETE triggers.
+
+=== Q2.5 Acceptance criteria
+
+==== Q2.5.a What executable acceptance evidence exists?
+
+[ANSWERED]
+
+Tests are grouped by epic and use case: `tests/test_epic_a_ausleihe.py` covers checkout/return, `test_epic_a2_verlaengerung.py` extension, `test_epic_b_pruefung_kaution.py` inspection/deposit, `test_epic_c_einweisung.py` training, `test_epic_d_katalog*.py` catalog, `test_epic_e_vormerkung.py` reservation, `test_epic_f_verlust.py` loss, `test_epic_g_wartung.py` maintenance, and `test_epic_maintenance_audit_retention.py` retention. The test module docstrings and test names provide use-case traceability.
+
+==== Q2.5.b Are all intended acceptance criteria complete?
+
+[OPEN]
+Category: business-context
+Ask role: Product Owner
+
+The repository contains executable scenarios, but code alone cannot establish whether they cover every intended business rule or release criterion. Has the product owner accepted the current scenario set as complete?
+
+=== Q2.6 Cross-cutting business rules
+
+==== Q2.6.a Which rules are explicit in code?
+
+[ANSWERED]
+
+Checkout requires an available item, permits at most three active loans per member, and rejects blocked members or missing training: `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`. Extension rejects overdue/already-extended loans: `verlaengerung_service.py::_verlaengerung_validieren`. Deposit is 20% of replacement value, bounded by 5 and 100 euros: `src/leihgut/domain/kaution.py::kaution_berechnen`. FIFO reservation order is calculated by `vormerkung_service.py::_reihenfolge_berechnen`; inspection and maintenance determine/reset item state and usage count in `pruefung_service.py` and `wartung_service.py`.
+
+==== Q2.6.b Can members cancel reservations?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+`VormerkungStatus` contains `MANUELL_ABGESAGT`, but the visible application service exposes creation and retrieval rather than a member cancellation operation. May members cancel their own open reservations, and under what conditions?
+
+== Q3 What is the architecture of this bounded context?
+
+=== Q3.1 Introduction and Goals
+
+[ANSWERED]
+
+The stated goal is a local system that prevents lending, deposit, maintenance, and reservation errors: `README.adoc` ("Worum es geht"). The implementation is a Python package under `src/leihgut/`, exercised by the test suite under `tests/`.
+
+=== Q3.2 Constraints
+
+[ANSWERED]
+
+The system is a single locally startable process, uses REST plus a workshop CLI boundary, has no external services, does not implement real login, and uses an exchangeable date source: `README.adoc` ("Rahmenbedingungen"). Python/dependency constraints are declared in `pyproject.toml`.
+
+=== Q3.3 Context and Scope
+
+[ANSWERED]
+
+The bounded context contains catalog, lending, inspection, training, reservations, maintenance, loss, deposits, and audit concerns. Member management, email, and payment systems are outside the source boundary; only `mitglied_id` and a blocked flag are carried in lending-related data, as documented by comments in `src/leihgut/adapters/persistence/schema.sql`.
+
+==== Q3.3.a What are the inferred internal context boundaries?
+
+[ANSWERED]
+
+Catalog (`Kategorie`, `Gegenstand`), lending (`Ausleihe`), training (`Einweisung`), reservation (`Vormerkung`), inspection/defects (`Pruefprotokoll`, `MaengelEintrag`), maintenance, loss, and deposit movements are capability boundaries inside one bounded context. They communicate through application-service calls and repository ports; `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_zuruecknehmen` calls reservation management after return.
+
+=== Q3.4 Solution Strategy
+
+[ANSWERED]
+
+The solution uses a hexagonal/modular structure: domain models in `src/leihgut/domain/`, application services in `src/leihgut/anwendungskern/`, Protocol ports in `src/leihgut/ports/`, REST/system-clock adapters in `src/leihgut/adapters/`, and SQLite persistence adapters in `src/leihgut/adapters/persistence/`. The REST module docstring in `src/leihgut/adapters/rest/app.py` explicitly says the adapter contains no domain logic.
+
+=== Q3.5 Building Block View
+
+[ANSWERED]
+
+The primary building blocks are domain dataclasses/enums, application services, repository/clock Protocols, REST adapters, SQLite repositories, and the SQLite schema. `src/leihgut/adapters/rest/app.py::create_app` wires concrete repositories and the clock into the service layer; the `src/leihgut/ports/` modules define the inward-facing interfaces.
+
+=== Q3.6 Runtime View
+
+[ANSWERED]
+
+A request enters a REST endpoint, passes `erfordere_rolle`, is converted from a Pydantic request schema, calls an application service, reads/writes through injected repositories, and is mapped to JSON/HTTP status. Checkout orchestration is visible in `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`; the repository transaction and concurrent-check behavior are visible in `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+=== Q3.7 Deployment View
+
+==== Q3.7.a What deployment topology is supported by code and repository constraints?
+
+[ANSWERED]
+
+The README specifies one local process with a local SQLite database and no external services: `README.adoc` ("Rahmenbedingungen"). The production clock is `src/leihgut/adapters/system_clock.py::SystemClock`; tests inject a fake clock from `tests/fakes.py`.
+
+==== Q3.7.b How are startup, database location, backup, and shutdown operated?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+The source establishes a local process and SQLite but does not define an operational runbook, supported startup command, database backup procedure, shutdown behavior, or deployment environment. What operational procedure is the supported one?
+
+=== Q3.8 Crosscutting Concepts
+
+==== Q3.8.a How are security and authorization handled?
+
+[ANSWERED]
+
+Role checking is centralized at the REST boundary by `src/leihgut/adapters/rest/rollen.py::erfordere_rolle` and occurs before service invocation in `src/leihgut/adapters/rest/app.py`. The README explicitly states that the header/CLI role is not authenticated.
+
+==== Q3.8.b How are consistency and concurrency handled?
+
+[ANSWERED]
+
+The schema has a partial unique index allowing at most one active loan per item: `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand`. The SQLite loan repository uses an explicit transaction/check-then-act path in `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+==== Q3.8.c How are audit and observability handled?
+
+[ANSWERED]
+
+`AuditLogEintrag` is append-only in `src/leihgut/domain/audit_log.py`; SQLite triggers reject UPDATE and DELETE in `schema.sql`. Statistics are calculated by `src/leihgut/anwendungskern/audit_retention_service.py::get_audit_log_stats` and exposed by the admin REST endpoint in `app.py`.
+
+==== Q3.8.d How are errors and recovery handled?
+
+[ANSWERED]
+
+Application services return domain-specific error results/exceptions, and REST maps them to HTTP responses in `src/leihgut/adapters/rest/app.py`. SQLite repository operations use transaction commit/rollback behavior; no external-service retry or circuit breaker is present because the README states there are no external services.
+
+==== Q3.8.e Is audit coverage complete for every state-changing use case?
+
+[OPEN]
+Category: design-rationale
+Ask role: Developer
+
+Audit writes are visible in several services, but code theory recovery cannot establish an intended completeness guarantee for every state change without a traceability rule or audit coverage test. Is every state-changing use case required to create an audit record, and which tests prove that?
+
+=== Q3.9 Architecture Decisions
+
+==== Q3.9.a Which decisions are encoded as technical constraints?
+
+[ANSWERED]
+
+The schema comments identify ADR-007 for the active-loan uniqueness constraint and ADR-009 for audit immutability: `src/leihgut/adapters/persistence/schema.sql`. The exchangeable clock is a dependency-injection decision implemented by `src/leihgut/ports/clock.py` and `src/leihgut/adapters/system_clock.py`.
+
+==== Q3.9.b How should cross-capability calls be formalized if the context is split later?
+
+[OPEN]
+Category: design-rationale
+Ask role: Architect
+
+Reservation assignment is invoked directly from lending/maintenance services, and `Gegenstand` is mutated by several workflows. The code does not reveal whether these are intended shared-kernel relationships, domain events, or future anti-corruption-layer boundaries. Which integration style is the architectural target?
+
+=== Q3.10 Quality Requirements
+
+[ANSWERED]
+
+Observable requirements include bounded deposit calculation in `src/leihgut/domain/kaution.py::kaution_berechnen`, invariant enforcement in schema CHECK/unique constraints, immutable audit rows through schema triggers, and testable time through the `Clock` Protocol. Numeric business performance targets are not encoded in the source.
+
+=== Q3.11 Risks and Technical Debt
+
+==== Q3.11.a What structural risks are visible?
+
+[ANSWERED]
+
+`Gegenstand` is shared across lending, inspection, maintenance, and loss workflows; services directly coordinate multiple repositories; and REST mapping is ad hoc. These facts are visible in `src/leihgut/domain/gegenstand.py`, the service modules under `src/leihgut/anwendungskern/`, and conversion helpers in `src/leihgut/adapters/rest/app.py`.
+
+==== Q3.11.b What operational and capacity risks remain unquantified?
+
+[OPEN]
+Category: quality-goals
+Ask role: Operations
+
+The code does not establish expected throughput, latency, database growth limits, backup recovery objectives, retention scheduling, or alerting. What operational targets and failure procedures must this context meet?
+
+=== Q3.12 Glossary
+
+==== Q3.12.a Which terms have stable source meanings?
+
+[ANSWERED]
+
+`Gegenstand` is an inventory item; `Ausleihe` is its loan lifecycle; `Kategorie` carries lending, maintenance, and training rules; `Einweisung` is member/category training; `Vormerkung` is a category FIFO reservation; `Pruefprotokoll` records post-return inspection; `Kautionsbewegung` records deposit movements; and `AuditLogEintrag` records immutable audit history. These meanings are defined by the corresponding modules in `src/leihgut/domain/` and the table comments in `schema.sql`.
+
+==== Q3.12.b What does "gesperrt" mean in the member domain?
+
+[OPEN]
+Category: business-context
+Ask role: Domain Expert
+
+The lending model stores and checks `mitglied_gesperrt`, but the source does not define the business meaning, trigger, duration, or clearing rule of a blocked member. What is the precise domain definition of "gesperrt"?
+
+== Q4 What quality goals drive the design?
+
+The following are derived quality scenarios only from observable code behavior. They do not invent target values. Q4.9 is the only quality-goal ranking leaf and is open.
+
+=== Q4.1 Functional suitability
+
+[ANSWERED]
+
+Scenario: When a checkout, return, inspection, reservation, training, maintenance, or loss operation receives invalid state or values, the application service rejects it with a domain-specific result/error. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, `pruefung_service.py::_pruefung_pruefen`, `katalog_service.py::_kategorie_werte_pruefen`, and the service-specific tests under `tests/`.
+
+=== Q4.2 Performance efficiency
+
+[ANSWERED]
+
+Scenario: A normal operation runs synchronously in one local process and accesses SQLite through repository methods; no cache, asynchronous worker, or retry path is encoded. Evidence: service orchestration in `src/leihgut/anwendungskern/` and concrete SQL adapters in `src/leihgut/adapters/persistence/`. The code supplies no latency or throughput target.
+
+=== Q4.3 Compatibility
+
+[ANSWERED]
+
+Scenario: The application core depends on repository and clock Protocols, while SQLite and system time are adapters. Replacing those implementations can preserve the application-service contracts if the Protocols remain satisfied. Evidence: `src/leihgut/ports/` and `src/leihgut/adapters/rest/app.py::create_app`.
+
+=== Q4.4 Usability
+
+[ANSWERED]
+
+Scenario: A consumer receives structured HTTP status/error responses rather than application exceptions directly, and availability is exposed as a read-only query. Evidence: `src/leihgut/adapters/rest/app.py` error mappings and `src/leihgut/anwendungskern/verfuegbarkeit_service.py::verfuegbarkeit_pruefen`. The code does not define human workflow or response-time targets.
+
+=== Q4.5 Reliability
+
+[ANSWERED]
+
+Scenario: Concurrent attempts to create two active loans for one item are constrained by `ux_ausleihe_aktiv_je_gegenstand`, while the repository uses an explicit transaction path. Evidence: `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand` and `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+=== Q4.6 Security
+
+[ANSWERED]
+
+Scenario: An endpoint with an unacceptable declared role is rejected before its application service is called. Evidence: `src/leihgut/adapters/rest/rollen.py::erfordere_rolle` and the guarded endpoint definitions in `src/leihgut/adapters/rest/app.py`. The code also explicitly leaves authentication and cryptographic role proof out of scope in `README.adoc`.
+
+=== Q4.7 Maintainability
+
+[ANSWERED]
+
+Scenario: Domain rules can be exercised without infrastructure through pure domain functions and application-service validation functions; infrastructure is substituted through Protocol ports. Evidence: `src/leihgut/domain/kaution.py::kaution_berechnen`, validation functions under `src/leihgut/anwendungskern/`, and `src/leihgut/ports/`.
+
+=== Q4.8 Portability
+
+[ANSWERED]
+
+Scenario: The application core can be wired with a different repository or clock implementation without changing the Protocol consumers. Evidence: `src/leihgut/ports/clock.py`, repository Protocols under `src/leihgut/ports/`, and dependency injection in `src/leihgut/adapters/rest/app.py::create_app`. The current deployment remains specifically Python plus SQLite.
+
+=== Q4.9 Which characteristic has priority?
+
+[OPEN]
+Category: quality-goals
+Ask role: Product Owner
+
+The source demonstrates functional, reliability, security, maintainability, and audit-related behavior but does not rank the ISO/IEC 25010 characteristics. Which quality characteristic has priority when trade-offs are necessary?
+
+== Q5 What risks and technical debt exist?
+
+=== Q5.1 Technical debt
+
+==== Q5.1.a Which shortcuts are visible?
+
+[ANSWERED]
+
+The context is a modular monolith with shared `Gegenstand` mutation across workflows, direct multi-repository orchestration in services, and manual REST/domain mapping. These are visible in `src/leihgut/domain/gegenstand.py`, `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`, and `src/leihgut/adapters/rest/app.py`.
+
+==== Q5.1.b Which debt is intentional versus accidental?
+
+[OPEN]
+Category: design-rationale
+Ask role: Architect
+
+The code shows coupling and omitted abstractions but does not record which are deliberate MVP trade-offs and which are defects to remove. Which technical-debt items are accepted, and what is their repayment horizon?
+
+=== Q5.2 Security risks
+
+==== Q5.2.a What security exposure is explicit?
+
+[ANSWERED]
+
+Role values are supplied through an unverified header/CLI flag, and the README explicitly excludes real login: `README.adoc` ("Rahmenbedingungen") and `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`. SQL statements are issued through SQLite repository adapters; the schema protects audit rows from SQL UPDATE/DELETE through triggers in `schema.sql`.
+
+==== Q5.2.b What deployment exposure is acceptable?
+
+[OPEN]
+Category: quality-goals
+Ask role: Architect
+
+The source makes header-trusted roles acceptable for a local process but does not define the permitted network exposure or compensating controls. May this context be reachable from an untrusted network, and what security boundary is required?
+
+=== Q5.3 Operational risks
+
+==== Q5.3.a What failures lack an encoded operating response?
+
+[ANSWERED]
+
+No health endpoint, scheduler integration, alerting, or external-service retry is visible in `src/leihgut/`; audit retention is implemented as callable application logic in `src/leihgut/anwendungskern/audit_retention_service.py`. SQLite and clock failures have no documented recovery policy in source.
+
+==== Q5.3.b How is retention cleanup operated?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+`cleanup_audit_log` exists, but code does not state whether it is called manually, scheduled, or supervised. Who triggers retention cleanup, and what happens when it fails?
+
+=== Q5.4 Dependency and supply-chain risks
+
+==== Q5.4.a Which dependencies and runtime range are declared?
+
+[ANSWERED]
+
+Runtime and dependencies are declared in `pyproject.toml`; the repository uses FastAPI, Pydantic, Uvicorn, Typer, and test dependencies including pytest/httpx/Hypothesis. There is no lockfile visible at repository root.
+
+==== Q5.4.b What update and pinning policy applies?
+
+[OPEN]
+Category: stakeholder-context
+Ask role: Operations
+
+`pyproject.toml` declares dependency ranges but the source tree does not define a lock/update policy or approved artifact source. Which Python and dependency versions are supported in production, and how are updates reviewed?
+
+=== Q5.5 Scaling and performance risks
+
+==== Q5.5.a What scaling limits are structural?
+
+[ANSWERED]
+
+The deployment is one local process with SQLite, all normal operations are synchronous, and audit entries accumulate in an append-only table. Evidence: `README.adoc` ("Rahmenbedingungen"), `src/leihgut/adapters/persistence/schema.sql` audit table/triggers, and `src/leihgut/anwendungskern/audit_retention_service.py`.
+
+==== Q5.5.b What load and recovery targets must be met?
+
+[OPEN]
+Category: quality-goals
+Ask role: Operations
+
+The code does not define expected concurrent users, operation volume, latency, maximum database size, recovery point objective, or recovery time objective. What capacity and recovery targets should govern this bounded context?

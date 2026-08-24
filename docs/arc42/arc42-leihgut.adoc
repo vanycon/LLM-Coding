@@ -1,0 +1,128 @@
+= arc42 Architecture: Leihgut
+:toc:
+:toclevels: 3
+
+== 1. Introduction and Goals
+
+The context is a local "Bibliothek der Dinge" for lending tools and equipment. Its stated goal is to prevent wrong deposit refunds, lending maintenance-due items, and reservation violations caused by extensions. Evidence: `README.adoc` ("Worum es geht").
+
+== 2. Constraints
+
+The system is one locally startable process with REST, a workshop CLI boundary, no external services, no real login, and an exchangeable date source. Evidence: `README.adoc` ("Rahmenbedingungen"). Python/dependency constraints are declared in `pyproject.toml`.
+
+== 3. Context and Scope
+
+The bounded context contains catalog, lending, inspection, training, reservations, maintenance, loss, deposits, audit, REST, SQLite, and clock concerns. Member management, email, and payment systems are outside the source boundary; `mitglied_id` and a blocked flag are carried in lending-related data. Evidence: `src/leihgut/` and comments in `src/leihgut/adapters/persistence/schema.sql` before `einweisung`.
+
+== 4. Solution Strategy
+
+The solution uses a hexagonal/modular structure: domain models in `src/leihgut/domain/`, application services in `src/leihgut/anwendungskern/`, Protocol ports in `src/leihgut/ports/`, REST/system-clock adapters in `src/leihgut/adapters/`, and SQLite persistence adapters in `src/leihgut/adapters/persistence/`. The REST adapter contains no domain logic. Evidence: module docstring in `src/leihgut/adapters/rest/app.py` and the package layout.
+
+== 5. Building Block View
+
+The primary building blocks are domain dataclasses/enums, application services, repository/clock Protocols, REST adapters, SQLite repositories, and the SQLite schema. `create_app` wires concrete repositories and the clock into the service layer. Evidence: `src/leihgut/adapters/rest/app.py::create_app` and `src/leihgut/ports/`.
+
+Internal capability boundaries are catalog, lending, training, reservation, inspection/defects, maintenance, loss, and deposit movements. They remain inside one bounded context and communicate through application-service calls and repository ports. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_zuruecknehmen` and the service modules under `src/leihgut/anwendungskern/`.
+
+== 6. Runtime View
+
+A REST request enters an endpoint, passes role validation, is converted from a Pydantic request schema, calls an application service, reads/writes through injected repositories, and is mapped to JSON/HTTP status. Evidence: `src/leihgut/adapters/rest/app.py`, `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`, and `src/leihgut/adapters/rest/schemas.py`.
+
+Checkout orchestration is in `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`. Repository transaction and concurrent-check behavior are in `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+== 7. Deployment View
+
+The supported topology is one local process with a local SQLite database and no external services. The production clock is `src/leihgut/adapters/system_clock.py::SystemClock`; tests inject a fake clock from `tests/fakes.py`. Evidence: `README.adoc` ("Rahmenbedingungen"), `system_clock.py`, and `tests/fakes.py`.
+
+Startup command, database location, backup, shutdown, deployment environment, and operational runbook are not defined by the available source and remain gaps.
+
+== 8. Crosscutting Concepts
+
+=== 8.1 Security and authorization
+
+Role checking is centralized at the REST boundary and occurs before service invocation. The README explicitly states that the header/CLI role is not authenticated. Evidence: `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`, `src/leihgut/adapters/rest/app.py`, and `README.adoc` ("Rahmenbedingungen").
+
+=== 8.2 Consistency and concurrency
+
+A partial unique index allows at most one active loan per item. The SQLite loan repository uses an explicit transaction/check-then-act path. Evidence: `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand` and `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+=== 8.3 Test concept
+
+The test structure has unit-level pure validation/domain logic, integration-level service/repository tests using in-memory SQLite, and HTTP/full-stack tests using `create_app`. Evidence: `tests/`, `tests/fakes.py`, and the test module docstrings in `tests/test_epic_*.py`.
+
+=== 8.4 Observability
+
+`AuditLogEintrag` is append-only; SQLite triggers reject UPDATE and DELETE. Audit statistics include total entries, oldest/newest entry, daily rate, and estimated size, and are exposed through the admin REST endpoint. Evidence: `src/leihgut/domain/audit_log.py`, `src/leihgut/adapters/persistence/schema.sql`, `src/leihgut/anwendungskern/audit_retention_service.py::get_audit_log_stats`, and `src/leihgut/adapters/rest/app.py`.
+
+=== 8.5 Error handling
+
+Application services return domain-specific errors and REST maps them to HTTP responses. SQLite operations use transaction commit/rollback behavior. No external-service retry or circuit breaker is present because there are no external services. Evidence: `src/leihgut/adapters/rest/app.py`, `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`, and `README.adoc`.
+
+Audit coverage completeness, clock-failure fallback, alerting, and retention scheduling are not settled by the source.
+
+== 9. Architecture Decisions
+
+The source encodes three significant decisions: Protocol-based ports with an exchangeable clock, a partial unique index for active-loan concurrency protection, and database triggers for audit immutability. Evidence: `src/leihgut/ports/clock.py`, `src/leihgut/adapters/system_clock.py`, `src/leihgut/adapters/persistence/schema.sql`, and `src/leihgut/adapters/rest/app.py::create_app`. Detailed ADRs are in `docs/specs/adrs/`.
+
+The intended future integration style for cross-capability calls and the shared `Gegenstand` model is unresolved.
+
+== 10. Quality Requirements
+
+The following scenarios are derived from observable code behavior. No numeric target is invented.
+
+=== Functional suitability
+
+When checkout, return, inspection, reservation, training, maintenance, or loss receives invalid state or values, the application service rejects it with a domain-specific result/error. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, `pruefung_service.py::_pruefung_pruefen`, `katalog_service.py::_kategorie_werte_pruefen`, and service-specific tests under `tests/`.
+
+=== Performance efficiency
+
+A normal operation runs synchronously in one local process and accesses SQLite through repository methods; no cache, asynchronous worker, or retry path is encoded. Evidence: service orchestration in `src/leihgut/anwendungskern/` and concrete SQL adapters in `src/leihgut/adapters/persistence/`. No latency or throughput target is encoded.
+
+=== Compatibility
+
+The application core depends on repository and clock Protocols while SQLite and system time are adapters. A replacement implementation can preserve application-service contracts if it satisfies those Protocols. Evidence: `src/leihgut/ports/` and `src/leihgut/adapters/rest/app.py::create_app`.
+
+=== Usability
+
+Consumers receive structured HTTP status/error responses, and availability is exposed as a read-only query. Evidence: `src/leihgut/adapters/rest/app.py` error mappings and `src/leihgut/anwendungskern/verfuegbarkeit_service.py::verfuegbarkeit_pruefen`. Human workflow and response-time targets are not encoded.
+
+=== Reliability
+
+Concurrent attempts to create two active loans for one item are constrained by `ux_ausleihe_aktiv_je_gegenstand`, while the repository uses an explicit transaction path. Evidence: `src/leihgut/adapters/persistence/schema.sql::ux_ausleihe_aktiv_je_gegenstand` and `src/leihgut/adapters/persistence/sqlite_ausleihe_repository.py`.
+
+=== Security
+
+An endpoint with an unacceptable declared role is rejected before its application service is called. Evidence: `src/leihgut/adapters/rest/rollen.py::erfordere_rolle` and guarded endpoint definitions in `src/leihgut/adapters/rest/app.py`. Authentication and cryptographic role proof are explicitly out of scope in `README.adoc`.
+
+=== Maintainability
+
+Domain rules can be exercised without infrastructure through pure domain functions and application-service validation functions; infrastructure is substituted through Protocol ports. Evidence: `src/leihgut/domain/kaution.py::kaution_berechnen`, validation functions under `src/leihgut/anwendungskern/`, and `src/leihgut/ports/`.
+
+=== Portability
+
+The application core can be wired with a different repository or clock implementation without changing Protocol consumers. Evidence: `src/leihgut/ports/clock.py`, repository Protocols under `src/leihgut/ports/`, and dependency injection in `src/leihgut/adapters/rest/app.py::create_app`. The current deployment remains Python plus SQLite.
+
+=== Quality priority gap
+
+The source demonstrates multiple quality behaviors but does not rank them. The priority characteristic remains an explicit Product Owner gap.
+
+== 11. Risks and Technical Debt
+
+Visible structural risks are shared `Gegenstand` mutation across lending, inspection, maintenance, and loss; direct multi-repository orchestration; and ad-hoc REST/domain mapping. Evidence: `src/leihgut/domain/gegenstand.py`, `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`, and `src/leihgut/adapters/rest/app.py`.
+
+Security exposure includes unverified header/CLI roles and no real authentication. Evidence: `README.adoc` ("Rahmenbedingungen") and `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`.
+
+Operational gaps include no health endpoint, scheduler integration, alerting, or external-service retry; retention is callable application logic. Evidence: `src/leihgut/` and `src/leihgut/anwendungskern/audit_retention_service.py`.
+
+The deployment and load/recovery targets, dependency update policy, accepted debt, and permitted network exposure remain unresolved.
+
+== 12. Glossary
+
+`Gegenstand`:: Inventory item with lifecycle state. Evidence: `src/leihgut/domain/gegenstand.py::GegenstandZustand`.
+`Ausleihe`:: Loan lifecycle. Evidence: `src/leihgut/domain/ausleihe.py::AusleiheZustand`.
+`Kategorie`:: Lending, maintenance, and training rules. Evidence: `src/leihgut/domain/kategorie.py`.
+`Einweisung`:: Member/category training. Evidence: `src/leihgut/domain/einweisung.py::ist_gueltig`.
+`Vormerkung`:: Category FIFO reservation. Evidence: `src/leihgut/domain/vormerkung.py::_reihenfolge_berechnen` and the reservation service.
+`Pruefprotokoll`:: Post-return inspection report. Evidence: `src/leihgut/domain/pruefprotokoll.py`.
+`Kautionsbewegung`:: Deposit movement. Evidence: `src/leihgut/domain/kautionsbewegung.py`.
+`AuditLogEintrag`:: Immutable audit history entry. Evidence: `src/leihgut/domain/audit_log.py` and audit triggers in `schema.sql`.

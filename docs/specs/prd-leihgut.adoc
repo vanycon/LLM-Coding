@@ -1,0 +1,67 @@
+= Product Requirements Document: Leihgut
+:toc:
+:toclevels: 3
+
+== Purpose
+
+This Product Requirements Document describes the Leihgut bounded context, a local "Bibliothek der Dinge" for lending tools and equipment. The source identifies approximately 400 items and 800 members and names lending, deposits, maintenance, and reservations as the problem domain. Evidence: `README.adoc` ("Worum es geht").
+
+== Problem
+
+The current process uses a paper ledger and cash deposits. The identified failures are incorrect deposit refunds, lending items that require maintenance, and reservation violations caused by extensions. Evidence: `README.adoc` ("Worum es geht").
+
+The context addresses these failures by calculating deposits, validating item state before checkout, and validating extensions. Evidence: `src/leihgut/domain/kaution.py::kaution_berechnen`, `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, and `src/leihgut/anwendungskern/verlaengerung_service.py::_verlaengerung_validieren`.
+
+== Users and channels
+
+The named personas are Karim, the counter worker; Sabine, the member; and Rolf, the workshop worker. Evidence: `README.adoc` ("Personas").
+
+Counter work is checkout and return. Member-facing work includes availability and reservations. Workshop work includes inspection, maintenance, training, and loss. Evidence: `src/leihgut/anwendungskern/ausleihe_service.py::gegenstand_ausgeben`, `::gegenstand_zuruecknehmen`, `src/leihgut/anwendungskern/verfuegbarkeit_service.py::verfuegbarkeit_pruefen`, `src/leihgut/anwendungskern/vormerkung_service.py::vormerkung_erfassen`, `src/leihgut/anwendungskern/pruefung_service.py::pruefung_abschliessen`, `wartung_service.py::wartung_abschliessen`, `einweisung_service.py::einweisung_erfassen`, and `verlust_service.py::verlust_erfassen`.
+
+The README specifies a REST API and a CLI for workshop tasks, with no web UI. Role information enters through the `X-Rolle` header. Evidence: `README.adoc` ("Rahmenbedingungen"), `src/leihgut/adapters/rest/app.py`, and `src/leihgut/adapters/rest/rollen.py::erfordere_rolle`.
+
+Real login is outside the stated boundary: roles are supplied by a header or CLI flag and are not authenticated. Evidence: `README.adoc` ("Rahmenbedingungen").
+
+== Goals
+
+The context shall prevent wrong deposit refunds, lending maintenance-due items, and reservation violations caused by extensions. Evidence: `README.adoc` ("Worum es geht").
+
+The implementation shall enforce deposit calculation, item-state validation, and extension validation. Evidence: `src/leihgut/domain/kaution.py::kaution_berechnen`, `src/leihgut/anwendungskern/ausleihe_service.py::_ausgabe_pruefen`, and `src/leihgut/anwendungskern/verlaengerung_service.py::_verlaengerung_validieren`.
+
+== Success criteria
+
+No quantified business success target is present in the source. Targets for error reduction, checkout duration, audit completeness, and member satisfaction remain to be supplied by the Product Owner.
+
+No segment priority is present in the source. The priority between counter staff, members, and workshop staff remains to be supplied by the Product Owner.
+
+== Scope
+
+=== In scope
+
+The context contains catalog, lending, inspection, training, reservations, maintenance, loss, deposits, audit, REST, SQLite, and clock concerns. Evidence: `src/leihgut/` and the answered context-scope description in the Phase 1 tree.
+
+=== Outside the context
+
+Member management, email, and payment systems are outside the source boundary. Only `mitglied_id` and a blocked flag are carried in lending-related data. Evidence: comments in `src/leihgut/adapters/persistence/schema.sql` before the `einweisung` table.
+
+=== Domain distinctions
+
+Items have maintenance and write-off states; a deposit is collateral; and training is attached to a member and category. Evidence: `GegenstandZustand` in `src/leihgut/domain/gegenstand.py` and `README.adoc` ("Warum das mehr ist als eine Bücherei").
+
+== Constraints
+
+The system is a single locally startable process with no external services. It uses REST, a workshop CLI boundary, and an exchangeable date source. Evidence: `README.adoc` ("Rahmenbedingungen").
+
+The current implementation uses Python package modules under `src/leihgut/`, SQLite persistence adapters, and a test suite under `tests/`. Evidence: `src/leihgut/`, `src/leihgut/adapters/persistence/`, and `tests/`.
+
+== Open questions and gaps
+
+No team answers or `(deferred)` markers are present in the Phase 1 open-question input. The following therefore remain unresolved:
+
+* Quantified business outcomes and target values for error reduction, checkout duration, audit completeness, and member satisfaction.
+* Primary release priority among counter staff, members, and workshop staff.
+* Whether the current acceptance scenarios cover every intended business rule and release criterion.
+* The business event or system that supplies `mitglied_gesperrt`.
+* The meaning, trigger, duration, and clearing rule of a blocked member.
+* Whether members may cancel their own open reservations and under what conditions.
+* The quality characteristic that has priority when trade-offs are necessary.
