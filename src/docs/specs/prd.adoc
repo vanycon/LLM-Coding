@@ -1,4 +1,4 @@
-= PRD: Leihgut — Werkzeugverleih einer Bibliothek der Dinge
+= PRD: Leihgut — Tool Lending for a Library of Things
 :toc: left
 :toclevels: 3
 :sectnums:
@@ -8,312 +8,311 @@
 
 == Problem
 
-Der Verein "Bibliothek der Dinge" verleiht Werkzeug und Geräte an seine Mitglieder.
-Bohrhammer, Beamer, Lastenrad, Kettensäge, Nähmaschine.
-Rund vierhundert Gegenstände, achthundert Mitglieder, geöffnet dienstags und samstags.
+The "Library of Things" association lends tools and equipment to its members.
+Rotary hammer, projector, cargo bike, chainsaw, sewing machine.
+Around four hundred items, eight hundred members, open on Tuesdays and Saturdays.
 
-Heute läuft das über ein Ringbuch und eine Kaution in bar.
-Die Theke ist ehrenamtlich besetzt, jedes Mal von anderen Leuten.
-Samstagvormittag stehen zwanzig Menschen an, während jemand im Ringbuch blättert.
+Today, this is managed with a binder and a cash deposit.
+The counter is staffed by volunteers, with different people each time.
+On Saturday mornings, twenty people queue while someone leafs through the binder.
 
-Drei Dinge gehen dabei regelmäßig schief.
-Kautionen werden falsch ausgezahlt, weil niemand weiß, was hinterlegt wurde.
-Geräte gehen kaputt, weil die fällige Wartung niemandem aufgefallen ist.
-Und wer ein Gerät vorbestellt hat, steht vor verschlossener Tür, weil es jemand anders verlängert hat.
+Three things regularly go wrong.
+Deposits are paid back incorrectly because nobody knows what was deposited.
+Equipment breaks because nobody noticed that maintenance was due.
+And someone who reserved a device finds the doors locked because somebody else extended their loan.
 
-== Ziele
+== Goals
 
-. Der Theke ist jederzeit klar, ob ein Gegenstand herausgegeben werden darf.
-. Jede Kautionsbewegung ist nachvollziehbar.
-. Wartungsfällige Geräte werden nicht ausgegeben.
-. Eine Vormerkung wird eingehalten.
+. The counter staff can tell at any time whether an item may be issued.
+. Every deposit transaction is traceable.
+. Equipment due for maintenance is not issued.
+. A hold is honored.
 
-=== Nicht-Ziele
+=== Non-Goals
 
-* Keine Kassenführung.
-  Wie das Bargeld in die Schublade kommt, klärt der Verein.
-* Kein Online-Shop.
-  Die Ausgabe passiert an der Theke, nicht per Versand.
-* Keine Mitgliederverwaltung.
-  Beiträge, Ein- und Austritte bleiben draußen.
+* No cash management.
+  How the cash gets into the drawer is up to the association.
+* No online shop.
+  Issuance takes place at the counter, not by shipping.
+* No member management.
+  Membership fees, joining, and leaving remain outside the system.
 
-== Die Domäne
+== The Domain
 
-Eine Bibliothek der Dinge funktioniert wie eine Bücherei — bis zu dem Punkt, an dem sie es nicht mehr tut.
+A library of things works like a library — up to the point where it does not.
 
-*Gegenstände verschleißen.*
-Ein Buch übersteht hundert Ausleihen, ein Bohrhammer nicht.
-Nach einer bestimmten Zahl von Ausleihen muss ein Gerät zum Wart.
-Bis dahin darf es nicht raus, auch wenn es unbeschädigt im Regal steht.
+*Items wear out.*
+A book survives a hundred loans; a rotary hammer does not.
+After a certain number of loans, a device must be serviced.
+Until then, it may not be issued, even if it is undamaged on the shelf.
 
-*Rückgabe ist kein Abschluss.*
-Wer eine Kettensäge zurückgibt, gibt sie in die Prüfung.
-Erst wenn jemand nachgesehen hat, ist der Vorgang beendet — und erst dann steht fest, ob die Kaution vollständig zurückgeht.
+*Return is not completion.*
+Someone returning a chainsaw hands it in for inspection.
+Only once someone has inspected it is the process complete — and only then is it determined whether the deposit is fully refunded.
 
-*Die Kaution ist kein Preis.*
-Sie richtet sich nach dem Wiederbeschaffungswert und wird bei der Ausgabe hinterlegt.
-Bei sauberer Rückgabe geht sie vollständig zurück.
-Der Verein verdient daran nichts.
+*The deposit is not a price.*
+It is based on the replacement value and is deposited when the item is issued.
+It is fully refunded when the item is returned in good condition.
+The association earns nothing from it.
 
-*Manche Geräte darf nicht jeder.*
-Wer ein einweisungspflichtiges Gerät ausleihen will, braucht eine dokumentierte Einweisung.
-Die hängt an der Person, nicht am Gegenstand.
+*Some devices are not for everyone.*
+Anyone wanting to borrow a device requiring instruction needs documented instruction.
+That instruction belongs to the person, not the item.
 
-== Was dieses System nicht ist
+== What This System Is Not
 
-Diese Abgrenzung ist verbindlich.
-Sie schließt Annahmen aus, die bei einer Verleihanwendung naheliegen und hier falsch sind.
+This boundary is binding.
+It rules out assumptions that are natural for a lending application but incorrect here.
 
-Keine Bücherei::
-Ein zurückgegebener Gegenstand wird nicht sofort verfügbar.
-Er geht in die Prüfung.
-Der Zustand "verfügbar" ist nicht das Gegenteil von "ausgeliehen".
+No library system::
+A returned item does not become available immediately.
+It goes into inspection.
+The state "available" is not the opposite of "on loan".
 
-Kein Verkauf und keine Gebühr::
-Die Kaution ist kein Preis, kein Entgelt und kein Ertrag.
-Sie ist ein verwahrter Betrag mit Rückgabeanspruch.
-Ausleihen kostet nichts.
+No sale and no fee::
+The deposit is not a price, charge, or revenue.
+It is a safeguarded amount that must be returned.
+Loans are free of charge.
 
-Keine reine Objekteigenschaft::
-Ob ein Gegenstand herausgegeben werden darf, hängt auch am Mitglied: Sperre, Einweisung, Zahl der laufenden Ausleihen.
-Eine Prüfung allein am Gegenstand ist unvollständig.
+Not merely an item property::
+Whether an item may be issued also depends on the member: suspension, instruction, and number of active loans.
+Checking the item alone is incomplete.
 
-Kein Kalenderintervall::
-Wartungsfälligkeit entsteht durch Nutzung, nicht durch Zeitablauf.
-Ein Gerät, das ein Jahr im Regal stand, ist nicht wartungsfällig.
+Not a calendar interval::
+Maintenance due status arises from use, not from the passage of time.
+A device that has stood on the shelf for a year is not due for maintenance.
 
-Kein Terminkalender::
-Eine Vormerkung reserviert keinen Zeitraum und kein Datum.
-Sie ist ein Platz in einer Warteschlange.
+Not an appointment calendar::
+A hold does not reserve a period or a date.
+It is a place in a queue.
 
 == Personas
 
-=== Karim, Thekendienst
+=== Karim, Counter Clerk
 
-Ehrenamtlich, alle zwei Wochen samstags drei Stunden.
-Er will in dreißig Sekunden wissen, ob er ein Gerät herausgeben darf, und die Kaution nicht im Kopf ausrechnen müssen.
+A volunteer, on duty for three hours every other Saturday.
+He wants to know within thirty seconds whether he may issue a device and not have to calculate the deposit in his head.
 
-=== Sabine, Mitglied
+=== Sabine, Member
 
-Renoviert ihre Wohnung, leiht regelmäßig.
-Sie will vorab sehen, ob ein Gerät frei ist, und es vormerken können.
+Renovating her apartment, she borrows regularly.
+She wants to see in advance whether a device is free and be able to place a hold on it.
 
-=== Rolf, Werkstattwart
+=== Rolf, Workshop Technician
 
-Prüft, repariert, mustert aus.
-Er entscheidet über Kautionsabzüge.
-Er sieht die Geräte erst Tage nach der Rückgabe.
+Inspects, repairs, and retires items.
+He decides on deposit deductions.
+He does not see the devices until days after they are returned.
 
-== Geschäftsregeln
+== Business Rules
 
-Die Regeln sind fachlich formuliert.
-Die Vergabe von BR-IDs, die Zerlegung in atomare Regeln und die Zuordnung zu Use Cases gehören in die Spezifikation.
+The rules are formulated in domain terms.
+Assigning BR IDs, breaking them down into atomic rules, and mapping them to use cases belong in the specification.
 
-=== Katalog
+=== Catalog
 
-* Jeder Gegenstand hat eine eindeutige Inventarnummer und gehört zu genau einer Kategorie.
-* Die Kategorie bestimmt die Leihdauer in Tagen, das Wartungsintervall in Ausleihen und die Einweisungspflicht.
-* Jeder Gegenstand hat einen Wiederbeschaffungswert in Euro.
-* Die Kaution beträgt 20 Prozent des Wiederbeschaffungswerts, kaufmännisch gerundet auf ganze Euro, mindestens 5 und höchstens 100 Euro.
+* Every item has a unique inventory number and belongs to exactly one category.
+* The category determines the loan duration in days, the maintenance interval in loans, and whether instruction is required.
+* Every item has a replacement value in euros.
+* The deposit is 20 percent of the replacement value, commercially rounded to whole euros, with a minimum of 5 and a maximum of 100 euros.
 
-=== Ausleihe
+=== Loan
 
-* Ein Gegenstand wird nur ausgegeben, wenn er verfügbar oder für dieses Mitglied reserviert ist.
-* Ein Mitglied darf höchstens drei Ausleihen gleichzeitig führen.
-  Vormerkungen zählen nicht mit.
-* Ein gesperrtes Mitglied leiht nicht aus.
-* Ein einweisungspflichtiger Gegenstand geht nur an ein Mitglied mit dokumentierter Einweisung für diese Kategorie.
-* Mit der Ausgabe wird die Kaution hinterlegt und die Rückgabefrist gesetzt: Ausgabedatum plus Leihdauer der Kategorie.
-* Eine Verlängerung um die volle Leihdauer ist einmal je Ausleihe möglich.
-* Eine Verlängerung ist ausgeschlossen, wenn für die Kategorie eine Vormerkung offen ist oder die Ausleihe bereits überfällig ist.
+* An item is issued only if it is available or reserved for this member.
+* A member may have at most three simultaneous loans.
+  Holds do not count toward this limit.
+* A suspended member may not borrow.
+* An item requiring instruction may only be issued to a member with documented instruction for this category.
+* When the item is issued, the deposit is collected and the return deadline is set: issue date plus the category's loan duration.
+* An extension by the full loan duration is possible once per loan.
+* An extension is excluded if an open hold exists for the category or the loan is already overdue.
 +
-Begründung: Sonst hält der erste Ausleiher den Gegenstand beliebig lange, und die Vormerkung ist wertlos.
+Reason: Otherwise, the first borrower can keep the item indefinitely, making the hold worthless.
 
-=== Rückgabe und Prüfung
+=== Return and Inspection
 
-* Die Rückgabe an der Theke versetzt den Gegenstand in die Prüfung.
-  Sie beendet die Ausleihe nicht.
-* Die Theke erfasst bei der Rückgabe Auffälligkeiten, entscheidet aber nicht über die Kaution.
-* Der Wart führt die Prüfung durch und erstellt ein Prüfprotokoll.
+* Returning an item at the counter moves it into inspection.
+  It does not end the loan.
+* At return, the counter staff record irregularities but do not decide on the deposit.
+* The workshop technician carries out the inspection and creates an inspection report.
 +
-Begründung: Gleichbehandlung.
-Wer dem Mitglied gegenübersteht, soll nicht über dessen Geld entscheiden.
-* Das Prüfprotokoll schließt die Ausleihe ab und legt den Kautionsabzug fest.
-* Ein Schaden wird der laufenden Ausleihe zugerechnet, es sei denn, er ist im Prüfprotokoll einer früheren Ausleihe bereits vermerkt.
+Reason: Equal treatment.
+The person facing the member should not decide about their money.
+* The inspection report closes the loan and determines the deposit deduction.
+* Damage is attributed to the current loan unless it was already recorded in the inspection report of an earlier loan.
 +
-Begründung: Das Prüfprotokoll ist die einzige belastbare Quelle.
-Alles andere wäre Aussage gegen Aussage.
-* Nach der Prüfung geht der Gegenstand in genau einen dieser Zustände: verfügbar, wartungsfällig oder ausgemustert.
+Reason: The inspection report is the only reliable source.
+Anything else would be one person's word against another's.
+* After inspection, the item enters exactly one of these states: available, due for maintenance, or retired.
 
-=== Kaution
+=== Deposit
 
-* Die Kaution wird bei der Ausgabe hinterlegt und mit dem Prüfprotokoll ganz oder teilweise freigegeben.
-* Ein Abzug ist höchstens so hoch wie die hinterlegte Kaution.
-* Gilt ein Gegenstand als verloren, wird die Kaution vollständig einbehalten und der Gegenstand ausgemustert.
-  Eine darüber hinausgehende Forderung entsteht außerhalb dieses Systems.
-* Jede Kautionsbewegung — Hinterlegung, Abzug, Freigabe — erzeugt einen Eintrag mit Zeitstempel, Betrag und Auslöser.
+* The deposit is collected when the item is issued and is fully or partially released with the inspection report.
+* A deduction may not exceed the collected deposit.
+* If an item is considered lost, the deposit is retained in full and the item is retired.
+  Any claim beyond this arises outside the system.
+* Every deposit transaction — collection, deduction, or release — creates an entry with a timestamp, amount, and trigger.
 
-=== Wartung
+=== Maintenance
 
-* Jede abgeschlossene Ausleihe erhöht den Nutzungszähler des Gegenstands um eins.
-* Erreicht der Zähler das Wartungsintervall der Kategorie, wird der Gegenstand nach der Prüfung wartungsfällig statt verfügbar.
+* Every completed loan increases the item's usage counter by one.
+* When the counter reaches the category's maintenance interval, the item becomes due for maintenance after inspection instead of available.
 +
-Begründung: Nutzung lässt sich zählen, Betriebsstunden kann an der Theke niemand messen.
-* Der Wart setzt einen wartungsfälligen Gegenstand nach erledigter Wartung auf verfügbar und den Nutzungszähler auf null.
-* Ein wartungsfälliger Gegenstand wird nicht ausgegeben und nicht reserviert.
+Reason: Use can be counted; nobody at the counter can measure operating hours.
+* After maintenance has been completed, the workshop technician sets an item due for maintenance to available and resets its usage counter to zero.
+* An item due for maintenance is neither issued nor reserved.
 
-=== Vormerkung
+=== Hold
 
-* Eine Vormerkung gilt für eine Kategorie, nicht für einen einzelnen Gegenstand.
-* Vormerkungen einer Kategorie bilden eine Warteschlange nach Eingangszeit.
-* Wird ein Gegenstand nach der Prüfung verfügbar und liegt eine Vormerkung vor, wird er für das erste Mitglied der Warteschlange reserviert.
-* Eine Reservierung verfällt drei Kalendertage nach ihrer Entstehung.
-  Der Gegenstand geht dann an das nächste Mitglied der Warteschlange oder wird verfügbar.
-* Wird ein Gegenstand nach der Prüfung wartungsfällig, bleibt die Warteschlange unverändert bestehen.
-  Es entsteht keine Reservierung.
-* Ein gesperrtes Mitglied darf vormerken, aber nicht abholen.
-  Eine für ein gesperrtes Mitglied entstehende Reservierung wird übersprungen; das Mitglied behält seinen Platz in der Warteschlange.
+* A hold applies to a category, not to an individual item.
+* Holds for a category form a queue ordered by time of receipt.
+* If an item becomes available after inspection and a hold exists, it is reserved for the first member in the queue.
+* A reservation expires three calendar days after it is created.
+  The item then goes to the next member in the queue or becomes available.
+* If an item becomes due for maintenance after inspection, the queue remains unchanged.
+  No reservation is created.
+* A suspended member may place a hold but may not collect the item.
+  A reservation created for a suspended member is skipped; the member retains their place in the queue.
 +
-Begründung: Die Sperre soll zur Rückgabe bewegen, nicht den Platz in der Schlange kosten.
+Reason: The suspension is intended to encourage return, not to cost the member their place in the queue.
 
-=== Sperre
+=== Suspension
 
-* Ein Mitglied ist gesperrt, sobald mindestens eine seiner Ausleihen überfällig ist.
-* Überfällig heißt: Die Rückgabefrist liegt vor dem heutigen Datum und der Gegenstand ist nicht zurückgegeben.
-* Die Sperre endet, wenn für alle überfälligen Ausleihen des Mitglieds die Prüfung abgeschlossen ist.
+* A member is suspended as soon as at least one of their loans is overdue.
+* Overdue means: the return deadline is before today's date and the item has not been returned.
+* The suspension ends when inspection has been completed for all of the member's overdue loans.
 
-== Qualitätsziele
+== Quality Goals
 
 [cols="1,3,2"]
 |===
-|Ziel |Szenario |Response Measure
+|Goal |Scenario |Response Measure
 
-|Sicherheit
-|Ein Mitglied ohne Einweisung versucht über jede verfügbare Schnittstelle, ein einweisungspflichtiges Gerät auszuleihen.
-|Kein Aufruf führt zur Ausgabe. Nachgewiesen durch je einen automatisierten Test pro Schnittstelle.
+|Security
+|A member without instruction attempts to borrow a device requiring instruction through every available interface.
+|No invocation results in an item being issued. Demonstrated by one automated test per interface.
 
-|Korrektheit der Kaution
-|Für ein Mitglied mit 50 abgeschlossenen Ausleihen wird der Kautionssaldo aus den Bewegungen nachgerechnet.
-|Abweichung: 0 Cent.
+|Deposit correctness
+|For a member with 50 completed loans, the deposit balance is recalculated from the transactions.
+|Deviation: 0 cents.
 
-|Nachvollziehbarkeit
-|Der Wart schließt eine Prüfung mit Abzug ab.
-|Der Vorgang erzeugt einen Audit-Eintrag mit Zeitstempel, Betrag, Auslöser und Verweis auf das Prüfprotokoll.
+|Traceability
+|The workshop technician completes an inspection with a deduction.
+|The operation creates an audit entry with timestamp, amount, trigger, and a reference to the inspection report.
 
-|Antwortzeit
-|Die Theke prüft die Ausgabefähigkeit eines Gegenstands bei 400 Gegenständen und 800 Mitgliedern.
-|Antwort in unter 300 ms, gemessen am 95. Perzentil über 100 Aufrufe.
+|Response time
+|The counter checks whether an item can be issued with 400 items and 800 members.
+|Response in under 300 ms, measured at the 95th percentile over 100 calls.
 |===
 
-Verfügbarkeit ist kein Qualitätsziel.
-Der Verein öffnet zweimal pro Woche; ein Ausfall dazwischen ist folgenlos.
+Availability is not a quality goal.
+The association opens twice a week; an outage between opening days has no consequences.
 
-== Rahmenbedingungen
+== Constraints
 
-Schnittstellen::
-Eine REST-API für alle Anwendungsfälle.
-Zusätzlich eine CLI für die Aufgaben des Warts.
-Keine Web-Oberfläche.
+Interfaces::
+A REST API for all use cases.
+Additionally, a CLI for the workshop technician's tasks.
+No web interface.
 
-Begründung::
-Ohne UI greifen Compiler und Testsuite als Fehlerkorrektur voll.
-Visuelle Konsistenz ließe sich nicht automatisch prüfen.
+Reason::
+Without a UI, the compiler and test suite provide full error correction.
+Visual consistency could not be checked automatically.
 
-Technologie::
-Sprache, Framework und Persistenz sind frei wählbar.
+Technology::
+Language, framework, and persistence are freely selectable.
 
-Betrieb::
-Ein Prozess, lokal startbar, ohne externe Dienste.
-Kein Mailversand, keine Zahlungsanbindung, keine Cloud.
+Operation::
+A single process, startable locally, without external services.
+No email delivery, payment integration, or cloud.
 
-Authentifizierung::
-Rollen werden über einen Header oder ein CLI-Flag mitgegeben und nicht geprüft.
-Ein echtes Login ist ausdrücklich nicht Teil dieses Systems.
+Authentication::
+Roles are supplied via a header or CLI flag and are not checked.
+Actual login is explicitly not part of this system.
 
-Zeit::
-Das System liest das aktuelle Datum über eine austauschbare Quelle, damit Fristen testbar bleiben.
+Time::
+The system reads the current date through a replaceable source so that deadlines can be tested.
 
-Sprache::
-Fachbegriffe im Code folgen dem Glossar dieses Dokuments.
+Language::
+Technical terms in the code follow the glossary in this document.
 
-== Umfang von Release 1
+== Release 1 Scope
 
 [cols="1,1"]
 |===
 |In Scope |Out of Scope
 
 a|
-* Katalog mit Gegenständen und Kategorien
-* Ausleihe mit Prüfung aller Ausgabebedingungen
-* Verlängerung
-* Rückgabe und Prüfung durch den Wart
-* Kaution hinterlegen, mindern, freigeben
-* Nutzungszähler und Wartungsfälligkeit
-* Vormerkung, Warteschlange, Reservierung mit Verfall
-* Sperre bei Überfälligkeit
-* Audit-Log für Zustandswechsel und Kautionsbewegungen
+* Catalog with items and categories
+* Loans with checks for all issuance conditions
+* Extensions
+* Return and inspection by the workshop technician
+* Collecting, reducing, and releasing deposits
+* Usage counter and maintenance due status
+* Holds, queue, and expiring reservations
+* Suspension for overdue loans
+* Audit log for state changes and deposit transactions
 a|
-* Mitgliederverwaltung, Beiträge, Ein- und Austritte
-* Kassenführung und Bargeldbestand
-* Forderungen über die Kaution hinaus
-* Versand, Lieferung, Abholstationen
-* Benachrichtigungen
-* Externe Reparaturaufträge
-* Anschaffungsplanung
-* Web-Oberfläche
+* Member management, fees, joining, and leaving
+* Cash management and cash balance
+* Claims beyond the deposit
+* Shipping, delivery, and pickup stations
+* Notifications
+* External repair orders
+* Acquisition planning
+* Web interface
 |===
 
-== Erfolgskriterien
+== Success Criteria
 
 [cols="3,2"]
 |===
-|Kriterium |Messgröße
+|Criterion |Measurement
 
-|Ausleihvorgang an der Theke
-|unter 30 Sekunden
+|Loan transaction at the counter
+|under 30 seconds
 
-|Kautionsdifferenzen
-|null ungeklärte Fälle pro Quartal
+|Deposit discrepancies
+|zero unresolved cases per quarter
 
-|Ausgaben trotz Wartungsfälligkeit oder fehlender Einweisung
-|null
+|Issuance despite maintenance due status or missing instruction
+|zero
 
-|Vergebliche Wege bei Vormerkung
-|unter 2 Prozent
+|Fruitless trips due to holds
+|under 2 percent
 |===
 
 == Definition of Done
 
-Ein Increment gilt als fertig, wenn:
+An increment is considered complete when:
 
-* alle Tests grün sind,
-* jeder Test seine Use-Case-ID nennt,
-* jede Geschäftsregel aus diesem Dokument durch mindestens ein Gherkin-Szenario abgedeckt ist,
-* Spezifikation und Architekturdokumentation den Stand des Codes wiedergeben,
-* getroffene Architekturentscheidungen als ADR vorliegen,
-* der Feature-Branch gemergt oder ein Pull Request offen ist.
+* all tests pass,
+* every test names its use-case ID,
+* every business rule in this document is covered by at least one Gherkin scenario,
+* the specification and architecture documentation reflect the state of the code,
+* architectural decisions made are documented as ADRs,
+* the feature branch has been merged or a pull request is open.
 
-== Glossar
+== Glossary
 
-Diese Begriffe gelten unverändert in Spezifikation, Architektur und Code.
+These terms apply unchanged in the specification, architecture, and code.
 
 [horizontal]
-Gegenstand:: Ein einzelnes physisches Exemplar mit eigener Inventarnummer.
-Kategorie:: Gruppe gleichartiger Gegenstände. Bestimmt Leihdauer, Wartungsintervall und Einweisungspflicht.
-Mitglied:: Person, die ausleihen darf.
-Thekendienst:: Rolle, die Gegenstände ausgibt und zurücknimmt.
-Wart:: Rolle, die prüft, wartet, ausmustert und über Kautionsabzüge entscheidet.
-Ausleihe:: Vorgang von der Ausgabe bis zum Abschluss der Prüfung.
-Rückgabe:: Übergabe des Gegenstands an die Theke. Beendet die Ausleihe nicht.
-Prüfung:: Kontrolle des Gegenstands nach der Rückgabe.
-Prüfprotokoll:: Ergebnis einer Prüfung. Schließt die Ausleihe ab.
-Kaution:: Bei der Ausgabe hinterlegter Betrag. Keine Gebühr.
-Wiederbeschaffungswert:: Preis für ein gleichwertiges Ersatzgerät.
-Nutzungszähler:: Zahl der abgeschlossenen Ausleihen seit der letzten Wartung.
-Wartungsfällig:: Zustand, in dem ein Gegenstand nicht ausgegeben und nicht reserviert wird.
-Ausgemustert:: Endzustand eines Gegenstands. Verloren oder irreparabel.
-Vormerkung:: Platz in der Warteschlange einer Kategorie.
-Reservierung:: Einem Mitglied für drei Kalendertage zugeordneter Gegenstand.
-Einweisung:: Dokumentierte Unterweisung einer Person für eine Kategorie.
-Sperre:: Zustand eines Mitglieds mit überfälliger Ausleihe.
-
+Item:: A single physical specimen with its own inventory number.
+Category:: A group of similar items. Determines loan duration, maintenance interval, and whether instruction is required.
+Member:: A person who is allowed to borrow.
+Counter Clerk:: A role that issues and accepts returned items.
+Workshop Technician:: A role that inspects, services, retires items, and decides on deposit deductions.
+Loan:: A process from issuance until completion of inspection.
+Return:: The handover of an item to the counter. Does not end the loan.
+Inspection:: Examination of an item after its return.
+Inspection Report:: The result of an inspection. Closes the loan.
+Deposit:: An amount collected when an item is issued. Not a fee.
+Replacement Value:: The price of an equivalent replacement device.
+Usage Counter:: The number of completed loans since the last maintenance.
+Due for Maintenance:: A state in which an item is not issued or reserved.
+Retired:: The final state of an item. Lost or beyond repair.
+Hold:: A place in a category's queue.
+Reservation:: An item assigned to a member for three calendar days.
+Instruction:: Documented training of a person for a category.
+Suspension:: A member's state when they have an overdue loan.
