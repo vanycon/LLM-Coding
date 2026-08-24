@@ -8,13 +8,13 @@ This replaces real GitHub Issues with version-controlled text files in the repos
 
 We are working on this project without GitHub Issues. Create Issues as text files instead and follow this convention strictly:
 
-- One Issue equals one file under `src/docs/issues/`, named `issue-<NNNN>-<slug>.adoc` (a consecutive four-digit number, with the title converted to a lowercase slug).
+- One Issue equals one file under `docs/issues/`, named `issue-<NNNN>-<slug>.adoc` (a consecutive four-digit number, with the title converted to a lowercase slug).
 - Each Issue file contains: ID, title, type (EPIC/Story/Bug), status (open/in-progress/closed), priority (MoSCoW), related Use Case and BR IDs, description, acceptance criteria (Gherkin), and dependencies (IDs of other Issues).
 - For new work, create the Issue file first, then implement it. Reference the Issue ID in the code and tests.
-- When an Issue is complete (all acceptance criteria are green), set its status to `closed` and move the file to `src/docs/issues/closed/`.
-- `src/docs/issues/` therefore contains only open Issues, while `src/docs/issues/closed/` contains the archive of completed Issues.
+- When an Issue is complete (all acceptance criteria are green), set its status to `closed` and move the file to `docs/issues/closed/`.
+- `docs/issues/` therefore contains only open Issues, while `docs/issues/closed/` contains the archive of completed Issues.
 
-Confirm the convention briefly and create the `src/docs/issues/` directory before we start with the first Issue.
+Confirm the convention briefly and create the `docs/issues/` directory before we start with the first Issue.
 
 ## Issue File Template (Reference)
 

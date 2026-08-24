@@ -185,9 +185,9 @@ Reason: The suspension is intended to encourage return, not to cost the member t
 
 == Use Case Catalog
 
-The detailed use-case specifications live in the sibling files under `src/docs/specs/use-cases/`.
-The REST and CLI contracts are specified in `src/docs/specs/system-interfaces.adoc`.
-The entity model, state machines, validation rules, activity diagrams, EARS requirements, traceability matrix, and open questions are specified in `src/docs/specs/supplementary-specification.adoc`.
+The detailed use-case specifications live in the sibling files under `docs/specs/use-cases/`.
+The REST and CLI contracts are specified in `docs/specs/system-interfaces.adoc`.
+The entity model, state machines, validation rules, activity diagrams, EARS requirements, traceability matrix, and open questions are specified in `docs/specs/supplementary-specification.adoc`.
 
 [cols="1,3,2"]
 |===

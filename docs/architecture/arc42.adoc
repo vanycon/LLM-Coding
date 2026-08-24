@@ -65,7 +65,7 @@ Availability is deliberately not an architectural goal: the association opens tw
 
 === 2.2 Technical and Contract Constraints
 
-* REST uses the contracts in `src/docs/specs/system-interfaces.adoc`.
+* REST uses the contracts in `docs/specs/system-interfaces.adoc`.
 * CLI output is JSON on standard output; validation and domain errors use the common error shape on standard error and exit status 1.
 * Identifiers are opaque strings.
 * Dates are ISO 8601 calendar dates. Timestamps are UTC ISO 8601 instants.
