@@ -1,0 +1,34 @@
+= Issue 0016: Expose REST API Contracts
+:issue-id: 0016
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, UC-03, UC-04, UC-05, UC-06, UC-07
+
+== Description
+Expose all release-1 use cases through the specified REST endpoints, DTOs, roles, statuses, stable errors, and atomic command behavior.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a REST request uses the documented endpoint and JSON contract
+When the request is valid and authorized
+Then the specified response body and success status are returned
+Given a request is malformed, unauthorized, unknown, conflicting, or invalid
+When it is processed
+Then the common error shape and specified status are returned
+Given a state-changing request fails
+When the response is returned
+Then no domain, audit, or deposit mutation remains
+Given a caller submits a stale eligibility result to issue
+When the issue request is processed
+Then eligibility is re-evaluated in the issue transaction
+----
+
+== Dependencies
+- 0008 (Check Item Eligibility)
+- 0009 (Issue Item)
+- 0010 (Extend Loan)
+- 0011 (Return Item to Inspection)
+- 0012 (Inspect Returned Item)
+- 0015 (Create and Resolve Holds)

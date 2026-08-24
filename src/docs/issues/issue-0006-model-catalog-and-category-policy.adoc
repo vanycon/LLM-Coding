@@ -1,0 +1,24 @@
+= Issue 0006: Model Catalog and Category Policy
+:issue-id: 0006
+:type: Story
+:status: open
+:priority: Must
+:refs: BR-Catalog, UC-01, UC-02, BR-05
+
+== Description
+Store categories and items with unique identifiers, replacement values, lifecycle status, usage counters, loan duration, maintenance interval, and instruction requirement.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a category and an item are created
+When their values are persisted
+Then the item belongs to exactly one category
+And duration and maintenance interval are positive
+And replacement value is positive
+And inventory number is unique
+And usage counter starts non-negative
+----
+
+== Dependencies
+- 0001 (Catalog and Member Readiness)

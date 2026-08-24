@@ -1,0 +1,26 @@
+= Issue 0007: Manage Member Readiness
+:issue-id: 0007
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, BR-01, BR-02, BR-03, BR-07, BR-08
+
+== Description
+Represent member suspension, simultaneous-loan count, and documented category instruction as system-owned state used by eligibility and issue decisions.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a member has overdue unreturned loans
+When the system evaluates the member
+Then the member is suspended
+Given all overdue loans have completed inspection
+When the system recalculates the member
+Then the suspension ends
+And instruction records are category-specific
+And awaiting-inspection loans count toward the three-loan limit
+----
+
+== Dependencies
+- 0001 (Catalog and Member Readiness)
+- 0006 (Model Catalog and Category Policy)

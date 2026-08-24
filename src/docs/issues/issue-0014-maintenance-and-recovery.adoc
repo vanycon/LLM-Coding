@@ -1,0 +1,30 @@
+= Issue 0014: Maintenance and Recovery
+:issue-id: 0014
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-05, UC-07, BR-01, BR-02, BR-03, BR-04
+
+== Description
+Block items at the maintenance threshold and let the technician complete maintenance or permanently retire an unrepairable item.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given inspection completes a loan at the category maintenance interval
+When the item outcome is determined
+Then the item becomes DUE_FOR_MAINTENANCE
+And it cannot be issued or reserved
+Given an item is due for maintenance with no active loan or inspection
+When maintenance is completed
+Then the usage counter resets to zero
+And the item becomes AVAILABLE
+And an audit entry is created
+Given an item cannot be repaired
+When the technician retires it
+Then it becomes RETIRED permanently
+And issue, reservation, and maintenance completion are rejected
+----
+
+== Dependencies
+- 0012 (Inspect Returned Item)

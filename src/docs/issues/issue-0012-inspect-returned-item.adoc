@@ -1,0 +1,31 @@
+= Issue 0012: Inspect Returned Item
+:issue-id: 0012
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-05, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06
+
+== Description
+Allow the workshop technician to inspect a returned item, create exactly one report, attribute damage using inspection history, close the loan, determine the item outcome, and recalculate suspension.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a loan is awaiting inspection
+When the technician completes an inspection
+Then exactly one report closes the loan
+And damage and notes are recorded
+And the item becomes AVAILABLE, DUE_FOR_MAINTENANCE, or RETIRED
+And usage increments exactly once
+And the member suspension is recalculated
+Given the item is lost or beyond repair
+When the inspection is completed
+Then the item is retired
+And the full collected deposit is retained
+Given a deduction exceeds the collected deposit
+When the inspection is completed
+Then the deduction does not exceed the collected deposit
+----
+
+== Dependencies
+- 0011 (Return Item to Inspection)

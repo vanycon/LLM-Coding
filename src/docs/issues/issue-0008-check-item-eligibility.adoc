@@ -1,0 +1,26 @@
+= Issue 0008: Check Item Eligibility
+:issue-id: 0008
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-07, BR-08, BR-09
+
+== Description
+Return a reasoned, read-only eligibility decision using current item, category, reservation, hold, member, loan, suspension, and instruction state.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an item is available and the member is eligible
+When eligibility is checked
+Then the response is eligible with deposit and duration
+And no loan, reservation, deposit, or audit record is created
+Given any issuance condition fails
+When eligibility is checked
+Then the response is ineligible with a stable reason
+And no state changes occur
+----
+
+== Dependencies
+- 0006 (Model Catalog and Category Policy)
+- 0007 (Manage Member Readiness)

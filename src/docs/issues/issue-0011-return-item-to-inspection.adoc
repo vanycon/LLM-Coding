@@ -1,0 +1,27 @@
+= Issue 0011: Return Item to Inspection
+:issue-id: 0011
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-04, BR-04
+
+== Description
+Record a counter return and observations, move the item into inspection, and keep the loan open until technician inspection.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an active loan without a recorded return
+When the clerk records the return and irregularities
+Then the item becomes IN_INSPECTION
+And the loan becomes AWAITING_INSPECTION
+And observations are stored without a deposit decision
+And a return audit entry is created
+Given the loan already has a return or is not active
+When return is requested
+Then the system returns a conflict
+And no duplicate return is created
+----
+
+== Dependencies
+- 0009 (Issue Item)

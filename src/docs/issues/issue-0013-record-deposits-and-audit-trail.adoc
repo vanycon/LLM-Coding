@@ -1,0 +1,32 @@
+= Issue 0013: Record Deposits and Audit Trail
+:issue-id: 0013
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-02, UC-03, UC-04, UC-05, UC-06, UC-07, BR-04, BR-05, BR-06
+
+== Description
+Implement the immutable deposit transaction ledger and append-only audit trail for every state-changing operation.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an item replacement value in euro cents
+When the deposit is calculated
+Then it is 20 percent rounded up to whole euros
+And it is bounded between 5 and 100 euros
+Given a loan is issued
+When the transaction commits
+Then exactly one collection record has timestamp, amount, trigger, and loan reference
+Given inspection determines release, deduction, or retention
+When the transaction commits
+Then the corresponding immutable ledger record is present
+And the derived balance is never negative
+Given any state-changing operation succeeds
+When it commits
+Then an audit entry contains timestamp, actor, event, entity, and details
+----
+
+== Dependencies
+- 0009 (Issue Item)
+- 0012 (Inspect Returned Item)

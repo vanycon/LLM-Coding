@@ -1,0 +1,27 @@
+= Issue 0009: Issue Item
+:issue-id: 0009
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-02, BR-01, BR-03, BR-04, BR-05, BR-06, BR-07, BR-08
+
+== Description
+Issue an eligible item to a member, set the deadline from category duration, collect the calculated deposit, consume a member reservation when applicable, and record the state change atomically.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given the item is available or reserved for the member and all member rules pass
+When the clerk issues the item
+Then one active loan is created
+And the item becomes on loan
+And the deadline is issue date plus category duration
+And one collection transaction is recorded
+Given eligibility has changed since a prior check
+When the clerk issues the item
+Then the request is rejected
+And no loan or deposit transaction is created
+----
+
+== Dependencies
+- 0008 (Check Item Eligibility)

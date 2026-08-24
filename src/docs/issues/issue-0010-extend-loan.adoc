@@ -1,0 +1,26 @@
+= Issue 0010: Extend Loan
+:issue-id: 0010
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-03, BR-Loan
+
+== Description
+Extend an active loan once by the complete category loan duration when it is not overdue and no open category hold exists.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an active non-overdue loan with no open category hold and no prior extension
+When the clerk requests an extension
+Then the deadline increases by the full category duration
+And the extension is marked used
+And an audit entry records the old and new deadlines
+Given the loan is overdue, already extended, or blocked by an open hold
+When extension is requested
+Then the request is rejected
+And the deadline is unchanged
+----
+
+== Dependencies
+- 0009 (Issue Item)

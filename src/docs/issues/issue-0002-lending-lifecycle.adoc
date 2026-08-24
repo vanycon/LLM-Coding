@@ -1,0 +1,21 @@
+= Issue 0002: Lending Lifecycle
+:issue-id: 0002
+:type: EPIC
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, UC-03, UC-04, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-07, BR-08, BR-09
+
+== Description
+Implement eligibility, issue, extension, and counter return as one coherent lending lifecycle. A return moves an item into inspection and does not complete the loan.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a catalog and member state satisfying the domain rules
+When clerks perform eligibility, issue, extension, and return operations
+Then each operation applies its specified state transitions
+And rejected state-changing operations leave domain and ledger state unchanged
+----
+
+== Dependencies
+- 0001 (Catalog and Member Readiness)

@@ -1,0 +1,28 @@
+= Issue 0018: Enforce Atomicity and Time Boundaries
+:issue-id: 0018
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, UC-03, UC-04, UC-05, UC-06, UC-07, BR-02, BR-05
+
+== Description
+Provide one transaction boundary for each state-changing use case, conflict protection for concurrent commands, and an injectable clock for overdue and calendar-expiry rules.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a state-changing operation updates domain state and required ledger records
+When any part fails
+Then all changes roll back
+Given two commands compete for one item or returned loan
+When both execute concurrently
+Then only one valid state transition commits
+And duplicate loan, collection, return, inspection, or reservation records are impossible
+Given tests supply a controlled current date
+When overdue or reservation expiry is evaluated
+Then calendar-date behavior is deterministic
+----
+
+== Dependencies
+- 0013 (Record Deposits and Audit Trail)
+- 0015 (Create and Resolve Holds)

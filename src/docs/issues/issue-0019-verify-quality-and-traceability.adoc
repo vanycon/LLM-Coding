@@ -1,0 +1,46 @@
+= Issue 0019: Verify Quality and Traceability
+:issue-id: 0019
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-01, UC-02, UC-03, UC-04, UC-05, UC-06, UC-07, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, BR-07, BR-08, BR-09
+
+== Description
+Build the test and observability coverage needed to demonstrate domain invariants, cross-interface parity, security, deposit correctness, traceability, and eligibility response time.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an instruction-required item and a member without instruction
+When issue is attempted through every available interface
+Then no loan is created
+Given a loan has deposit transactions
+When its balance is recalculated
+Then deviation from the transaction ledger is 0 cents
+Given inspection completes with a deduction
+When audit records are queried
+Then timestamp, amount, trigger, and inspection reference are reconstructable
+Given 400 items and 800 members
+When eligibility is measured over 100 calls
+Then the 95th percentile response is under 300 ms
+Given a normal counter issue transaction
+When the clerk completes the operation
+Then the transaction completes in under 30 seconds
+Given completed loans and their immutable deposit transactions
+When deposit discrepancies are reviewed for a quarter
+Then there are zero unresolved discrepancies
+Given an item is due for maintenance or a member lacks required instruction
+When issue attempts are reviewed
+Then there are zero issuances that violate those rules
+Given reservations and member journeys are tracked
+When fruitless trips caused by holds are measured
+Then they are below 2 percent
+Given any invariant test runs
+When it exercises valid and invalid state transitions
+Then it covers the corresponding UC and BR identifiers
+----
+
+== Dependencies
+- 0016 (Expose REST API Contracts)
+- 0017 (Provide Workshop Technician CLI)
+- 0018 (Enforce Atomicity and Time Boundaries)

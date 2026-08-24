@@ -1,0 +1,35 @@
+= Issue 0015: Create and Resolve Holds
+:issue-id: 0015
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-06, BR-03, BR-04, BR-05, BR-06
+
+== Description
+Create category-based holds and resolve availability through ordered queues and three-calendar-day reservations.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a member and category exist
+When the member creates a hold
+Then it is appended using server receipt time
+And queue order is receipt time with stable hold ID tie-breaking
+Given an item becomes available after inspection
+When allocation runs
+Then the first eligible hold member receives a reservation
+And the reservation expires after three calendar days
+Given the next hold member is suspended
+When allocation runs
+Then the member is skipped without losing or changing queue position
+Given the item is due for maintenance
+When allocation runs
+Then no reservation is created
+Given a reservation expires
+When expiry is processed
+Then the next eligible hold is allocated or the item becomes available
+----
+
+== Dependencies
+- 0014 (Maintenance and Recovery)
+- 0013 (Record Deposits and Audit Trail)

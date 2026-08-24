@@ -1,0 +1,32 @@
+= Issue 0020: Provide Local Persistence and Runtime
+:issue-id: 0020
+:type: Story
+:status: open
+:priority: Must
+:refs: BR-01, BR-02, BR-03, BR-04, BR-05, BR-06, UC-01, UC-02, UC-03, UC-04, UC-05, UC-06, UC-07
+
+== Description
+Provide the local transactional persistence schema, migrations, configuration, and single-process start path required to run release 1 without external services.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a fresh local data directory
+When the application is started
+Then it creates or migrates the schema for catalog, members, loans, returns, inspections, deposits, holds, reservations, and audit entries
+And the REST API and technician CLI can use the same data store
+Given a state-changing use case writes domain state and required audit or deposit records
+When the transaction commits
+Then all records are durable and queryable
+Given the transaction fails
+When rollback completes
+Then no partial domain, audit, or deposit state remains
+Given the configured local process is started without external services
+When a client invokes the documented interfaces
+Then the system is operational from the local deployment
+----
+
+== Dependencies
+- 0006 (Model Catalog and Category Policy)
+- 0013 (Record Deposits and Audit Trail)
+- 0018 (Enforce Atomicity and Time Boundaries)

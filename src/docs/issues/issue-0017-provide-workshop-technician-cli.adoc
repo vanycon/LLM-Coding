@@ -1,0 +1,30 @@
+= Issue 0017: Provide Workshop Technician CLI
+:issue-id: 0017
+:type: Story
+:status: open
+:priority: Must
+:refs: UC-05, UC-06, UC-07
+
+== Description
+Provide the `leihgut` technician commands for inspection listing/completion, maintenance completion, retirement, and reservation expiry with the specified role flag and process contract.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given a technician invokes a documented command with --role workshop-technician
+When the command succeeds
+Then JSON is written to stdout
+And the process exits 0
+Given a command has missing, malformed, negative, unsupported, or conflicting input
+When it is processed
+Then the common error shape is written to stderr
+And the process exits 1
+Given the CLI performs a state-changing operation
+When it commits
+Then it uses the same validation, transitions, audit, deposits, and atomicity as REST
+----
+
+== Dependencies
+- 0012 (Inspect Returned Item)
+- 0014 (Maintenance and Recovery)
+- 0015 (Create and Resolve Holds)

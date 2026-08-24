@@ -1,0 +1,22 @@
+= Issue 0003: Inspection, Deposits, and Recovery
+:issue-id: 0003
+:type: EPIC
+:status: open
+:priority: Must
+:refs: UC-05, UC-07, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06
+
+== Description
+Implement technician inspection, deposit outcomes, usage counting, maintenance recovery, retirement, and member suspension recalculation.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given an item has been returned and awaits inspection
+When a technician completes inspection or maintenance
+Then the loan, item, usage counter, deposit outcome, and suspension state are updated atomically
+And every applicable transition is traceable
+----
+
+== Dependencies
+- 0001 (Catalog and Member Readiness)
+- 0002 (Lending Lifecycle)

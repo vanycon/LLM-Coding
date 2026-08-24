@@ -1,0 +1,23 @@
+= Issue 0004: Holds and Reservations
+:issue-id: 0004
+:type: EPIC
+:status: open
+:priority: Must
+:refs: UC-06, BR-01, BR-02, BR-03, BR-04, BR-05, BR-06
+
+== Description
+Implement category-based hold queues, three-calendar-day reservations, allocation, expiry, and suspended-member queue preservation.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given members hold positions in a category queue
+When an item becomes available or a reservation expires
+Then the first eligible member receives the reservation
+And suspended members are skipped without losing or changing queue position
+And maintenance-due items are never reserved
+----
+
+== Dependencies
+- 0001 (Catalog and Member Readiness)
+- 0003 (Inspection, Deposits, and Recovery)

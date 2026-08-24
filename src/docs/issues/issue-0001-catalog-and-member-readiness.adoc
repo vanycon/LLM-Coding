@@ -1,0 +1,21 @@
+= Issue 0001: Catalog and Member Readiness
+:issue-id: 0001
+:type: EPIC
+:status: open
+:priority: Must
+:refs: BR-Catalog, BR-01
+
+== Description
+Provide the catalog, category policies, member borrowing state, and documented instruction records required by every lending use case.
+
+== Acceptance Criteria
+[source,gherkin]
+----
+Given the system receives valid category, item, member, and instruction data
+When the data is stored
+Then identifiers and catalog invariants are enforced
+And item and member state can be queried by application services
+----
+
+== Dependencies
+- None

@@ -1,0 +1,502 @@
+= arc42 Architecture Documentation: Leihgut
+:toc: left
+:toclevels: 3
+:sectnums:
+:icons: font
+:revnumber: 1.0
+:revdate: 2026-08-24
+
+== 1. Introduction and Goals
+
+=== 1.1 Requirements Overview
+
+Leihgut is a local lending system for a library of things. It supports counter staff issuing and extending loans, counter staff receiving returned items, workshop technicians inspecting and maintaining items, and members creating and resolving category-based holds.
+
+The system replaces a paper binder and an untraceable cash-deposit process with a single source of truth for item availability, member borrowing eligibility, inspection outcomes, maintenance status, holds, reservations, and deposit transactions.
+
+The architecture must preserve these domain distinctions:
+
+* A returned item is in inspection; it is not immediately available.
+* A deposit is safeguarded money, not a fee or revenue.
+* Eligibility depends on both item and member state.
+* Maintenance is driven by completed-loan count, not elapsed time.
+* A hold is a category queue; a reservation is a temporary allocation of an item.
+
+=== 1.2 Quality Goals
+
+The following goals are architectural drivers from the PRD:
+
+[cols="1,3,3"]
+|===
+|Priority |Quality goal |Architectural response
+
+|1 |Security: a member without required instruction cannot issue an item through any interface. |One application service and one domain eligibility policy are shared by REST and CLI; adapters cannot bypass them.
+
+|2 |Deposit correctness: recalculating a loan balance from 50 completed loans deviates by 0 cents. |Money is represented as integer euro cents; deposit transactions are immutable and committed atomically with the use case.
+
+|3 |Traceability: an inspection deduction is reconstructable. |Append-only audit entries and immutable deposit transactions reference the triggering operation and affected loan.
+
+|4 |Response time: eligibility completes under 300 ms at the 95th percentile for 100 calls with 400 items and 800 members. |Eligibility uses indexed reads and a read-only application path without writes or external calls.
+|===
+
+Availability is deliberately not an architectural goal: the association opens twice per week and the system has no external service dependency.
+
+=== 1.3 Stakeholders
+
+[cols="1,2,3"]
+|===
+|Stakeholder |Concern |Relevant architecture view
+
+|Counter clerk |A quick, reliable issue decision and correct deposit amount. |Use cases, API, application services, item/member policies.
+|Member |Accurate availability and fair hold ordering. |Hold and reservation model, REST contract.
+|Workshop technician |Inspection, deposit decisions, maintenance, retirement. |CLI adapter, inspection and maintenance services.
+|Association |Traceable money and state changes with low operational overhead. |Persistence, audit, deployment, risks.
+|Developer |Clear boundaries and testable business rules. |Building blocks, crosscutting concepts, test strategy.
+|===
+
+== 2. Architecture Constraints
+
+=== 2.1 Product Constraints
+
+* Release 1 is a single local process.
+* All use cases are exposed through a REST API.
+* Workshop technician tasks additionally have a `leihgut` CLI.
+* There is no web UI, online shop, shipping, cash management, member management, login, email, payment integration, cloud dependency, or external service.
+
+=== 2.2 Technical and Contract Constraints
+
+* REST uses the contracts in `src/docs/specs/system-interfaces.adoc`.
+* CLI output is JSON on standard output; validation and domain errors use the common error shape on standard error and exit status 1.
+* Identifiers are opaque strings.
+* Dates are ISO 8601 calendar dates. Timestamps are UTC ISO 8601 instants.
+* Monetary values are integer euro cents.
+* The caller supplies a role through `X-Role` or `--role`; authentication and role verification are outside release 1. Missing or unsupported roles are still rejected.
+* Every state-changing operation is atomic.
+* The system uses a replaceable time source for today's date.
+
+=== 2.3 Architectural Constraints
+
+* The domain model is independent of REST, CLI, persistence, and clock implementations.
+* Layer boundaries expose DTOs and contracts, never domain entities.
+* Mapping is explicit at each boundary.
+* Dependency direction points inward through ports; infrastructure implements those ports.
+* PlantUML diagrams use the bundled C4-PlantUML standard library.
+
+== 3. Context and Scope
+
+=== 3.1 Business Context
+
+The system sits between three human actors and the association's physical lending operation. Membership administration and authentication remain outside the system.
+
+[plantuml]
+....
+@startuml
+!include <C4/C4_Context.puml>
+LAYOUT_WITH_LEGEND()
+Person(clerk, "Counter Clerk", "Checks eligibility, issues, extends, and receives items")
+Person(member, "Member", "Checks availability and creates or resolves holds")
+Person(technician, "Workshop Technician", "Inspects, maintains, and retires items")
+System(leihgut, "Leihgut", "Tracks lending, inspection, deposits, maintenance, holds, reservations, and audit")
+System_Ext(membership, "Membership Administration", "Owns membership fees and membership lifecycle")
+Rel(clerk, leihgut, "Uses REST API")
+Rel(member, leihgut, "Uses REST API")
+Rel(technician, leihgut, "Uses REST API or technician CLI")
+Rel(leihgut, membership, "No release-1 integration")
+@enduml
+....
+
+=== 3.2 Technical Context
+
+REST and CLI are two inbound adapters to the same application services. Both use the same persistence port and transaction boundary. There are no outbound runtime integrations.
+
+[plantuml]
+....
+@startuml
+!include <C4/C4_Container.puml>
+LAYOUT_WITH_LEGEND()
+Person(clerk, "Counter Clerk")
+Person(member, "Member")
+Person(technician, "Workshop Technician")
+System_Boundary(system, "Leihgut process") {
+  Container(rest, "REST API", "HTTP/JSON", "Maps requests and responses; enforces interface-level role contract")
+  Container(cli, "Technician CLI", "Command line/JSON", "Maps technician commands and process exit codes")
+  Container(app, "Application services", "Use-case orchestration", "Coordinates transactions and ports")
+  Container(domain, "Domain core", "Entities and policies", "Enforces lending, inspection, deposit, maintenance, hold, and suspension rules")
+  ContainerDb(db, "Local database", "Transactional persistence", "Stores domain state, immutable deposits, and append-only audit")
+}
+Rel(clerk, rest, "REST/JSON")
+Rel(member, rest, "REST/JSON")
+Rel(technician, rest, "REST/JSON")
+Rel(technician, cli, "Commands/JSON")
+Rel(rest, app, "DTOs")
+Rel(cli, app, "Commands")
+Rel(app, domain, "Domain commands and decisions")
+Rel(app, db, "Repositories and unit of work")
+@enduml
+....
+
+=== 3.3 Scope Boundaries
+
+Inside the system:
+
+* Catalog and category policy.
+* Member borrowing state, instructions, loans, returns, and inspections.
+* Deposit calculation and immutable deposit ledger.
+* Usage counters, maintenance state, and retirement.
+* Category hold queues and item reservations.
+* Audit trail and current-date evaluation.
+
+Outside the system:
+
+* Authentication and identity proof.
+* Membership fees, joining, leaving, and member master-data administration.
+* Physical cash handling and reconciliation with a cash drawer.
+* Email or other notifications.
+* Shipping, payment processing, and online commerce.
+
+== 4. Solution Strategy
+
+=== 4.1 Architectural Style
+
+Use a modular monolith with hexagonal boundaries:
+
+* A single process and local transactional database minimize operational cost and preserve atomicity.
+* REST and CLI are thin inbound adapters.
+* Application services implement use-case orchestration and transaction demarcation.
+* The domain core owns invariants and produces decisions or domain events.
+* Persistence is an outbound adapter behind repository and unit-of-work ports.
+* Audit and deposit recording are mandatory ports used by every state-changing service.
+
+=== 4.2 Key Strategies
+
+* Re-evaluate issue eligibility inside the issue transaction; eligibility responses are advisory and can become stale.
+* Use integer cents and explicit deposit transaction types; never use floating-point money.
+* Model loan completion as an inspection action, not as the counter return action.
+* Treat holds and reservations as separate concepts and persist queue order by receipt timestamp plus stable hold identifier.
+* Use a replaceable clock so overdue and three-calendar-day expiry behavior is deterministic in tests.
+* Resolve reservation expiry through an explicit command in release 1. Lazy evaluation may be added only after the contract is clarified.
+* Use optimistic locking or equivalent write-conflict detection to prevent double issue, duplicate return, duplicate inspection, and competing reservation allocation.
+
+== 5. Building Block View
+
+=== 5.1 Level 1: Modules
+
+[cols="1,3,3"]
+|===
+|Module |Responsibility |Depends on
+
+|`domain.catalog` |Category policy, item identity, replacement value, item lifecycle, usage counter. |Domain types only.
+|`domain.member` |Member status, instruction, active-loan count, suspension decision. |Loan and clock abstractions through domain input.
+|`domain.lending` |Eligibility, issue, extension, return, and loan state transitions. |Catalog and member policies.
+|`domain.inspection` |Return inspection, damage attribution, loan completion, outcome selection. |Loan, catalog, and deposit policy.
+|`domain.deposit` |Deposit calculation, balance invariant, collection, deduction, release, retention. |Money and transaction types.
+|`domain.holds` |Category queue, reservation allocation, suspension skip, and expiry. |Catalog and member state.
+|`application` |Use-case orchestration, transaction boundary, authorization policy, DTO mapping. |Domain ports and DTOs.
+|`adapters.rest` |HTTP routing, JSON validation, status/error mapping, `X-Role` extraction. |Application contracts only.
+|`adapters.cli` |Command parsing, `--role` handling, JSON stdout/stderr, exit codes. |Application contracts only.
+|`adapters.persistence` |Repository implementations, schema mapping, transaction/unit-of-work implementation. |Persistence technology and application ports.
+|`adapters.time` |Production current-date/time provider. |Standard clock.
+|===
+
+=== 5.2 Level 2: Use-Case Services
+
+[cols="1,3,2"]
+|===
+|Service |Operations |Traceability
+
+|`EligibilityService` |Check item eligibility and calculate deposit preview. |UC-01, BR-01 to BR-09.
+|`IssueLoanService` |Re-check eligibility, create loan, collect deposit, audit, and commit atomically. |UC-02.
+|`ExtendLoanService` |Validate extension conditions, update deadline, and audit. |UC-03.
+|`ReturnLoanService` |Record observations, move item to inspection, retain open loan, and audit. |UC-04.
+|`InspectLoanService` |Create report, attribute damage, close loan, post deposit outcome, update usage, allocate hold, and recalculate suspension. |UC-05.
+|`HoldService` |Create hold, list queue, allocate reservations, and expire reservations. |UC-06.
+|`MaintenanceService` |Complete maintenance or retire an unrepairable item and audit. |UC-07.
+|===
+
+=== 5.3 Domain Ports
+
+Inbound application commands and results are DTOs. Outbound ports are interfaces owned by the application/domain boundary:
+
+* `ItemRepository`, `CategoryRepository`, `MemberRepository`, `LoanRepository`, `HoldRepository`, and `ReservationRepository`.
+* `InspectionRepository` for reports and previous inspection history.
+* `DepositLedger` for immutable transaction append and balance reads.
+* `AuditLog` for append-only state-change records.
+* `UnitOfWork` for atomic commit and rollback.
+* `Clock` for current date and UTC timestamp.
+
+Repositories return domain snapshots or aggregates through explicit mappers. Adapters do not expose database records to the domain.
+
+== 6. Runtime View
+
+=== 6.1 Issue Item
+
+[plantuml]
+....
+@startuml
+actor Clerk
+boundary REST
+control IssueLoanService
+control EligibilityPolicy
+collections Repositories
+control DepositLedger
+control AuditLog
+Clerk -> REST : POST /loans
+REST -> IssueLoanService : IssueLoan command
+IssueLoanService -> Repositories : Load item, category, member, holds, loans
+IssueLoanService -> EligibilityPolicy : Evaluate current state
+EligibilityPolicy --> IssueLoanService : Eligible or stable reason
+alt eligible
+  IssueLoanService -> Repositories : Create loan and update item
+  IssueLoanService -> DepositLedger : Append collection transaction
+  IssueLoanService -> AuditLog : Append state-change entries
+  IssueLoanService --> REST : Loan result
+else rejected
+  IssueLoanService --> REST : Domain error; rollback/no writes
+end
+REST --> Clerk : 201 or error status
+@enduml
+....
+
+=== 6.2 Return and Inspect Item
+
+. `ReturnLoanService` verifies an active loan without a prior return.
+. It records counter observations, changes the item to `IN_INSPECTION`, and changes the loan to `AWAITING_INSPECTION`.
+. `InspectLoanService` loads the returned loan and history, creates exactly one report, attributes damage, and calculates the final deposit outcome.
+. It increments usage exactly once, selects `AVAILABLE`, `DUE_FOR_MAINTENANCE`, or `RETIRED`, and allocates a reservation only for an available item.
+. It appends audit and deposit records and recalculates member suspension in the same transaction.
+
+=== 6.3 Reservation Expiry
+
+The explicit expiry command loads active reservations whose calendar expiry has been reached. Each reservation is resolved in queue order. A suspended member is skipped without deleting the hold or changing queue position. The next eligible member receives a three-calendar-day reservation; if none exists, the item becomes available.
+
+=== 6.4 Concurrency Scenarios
+
+* Two issue requests for the same item: the transaction that commits first changes the item state; the other receives a conflict and writes no loan or deposit transaction.
+* Two inspection requests for the same returned loan: a unique report constraint and state check allow exactly one completion.
+* Concurrent hold allocation: queue ordering and a write lock or optimistic version check allow one reservation per item.
+* A stale eligibility response: issue re-evaluates all conditions, so a stale read cannot authorize a loan.
+
+== 7. Deployment View
+
+=== 7.1 Local Deployment
+
+[plantuml]
+....
+@startuml
+!include <C4/C4_Deployment.puml>
+LAYOUT_WITH_LEGEND()
+Deployment_Node(host, "Association workstation", "Local operating system") {
+  Container(process, "Leihgut process", "REST server plus CLI executable", "Single deployable process")
+  Deployment_Node(data, "Local data directory", "Filesystem") {
+    ContainerDb(database, "Leihgut database", "Transactional local database", "Domain state, deposit ledger, audit log")
+    Container(backup, "Backup files", "Filesystem", "Operational backup destination")
+  }
+}
+Rel(process, database, "Reads and writes")
+Rel(database, backup, "Operational backup procedure")
+@enduml
+....
+
+=== 7.2 Runtime Characteristics
+
+The REST server and CLI share application code and persistence semantics. The CLI may be a separate invocation of the same executable, but it does not introduce a second service or database. No network access is required for normal operation. Backup and restoration are operational procedures and remain an open question in the supplementary specification.
+
+== 8. Crosscutting Concepts
+
+=== 8.1 Threat Model
+
+[cols="1,2,3,2"]
+|===
+|ID |STRIDE threat |Exposure |Mitigation
+
+|T-001 |Spoofing |Caller supplies role header or CLI flag without authentication. |Make authentication exclusion explicit; reject missing/unsupported roles; deploy on the trusted local workstation; do not present this as identity verification.
+|T-002 |Tampering |A client submits invalid state or monetary values. |Domain validation, stable errors, integer cents, transaction rollback, and immutable ledger records.
+|T-003 |Repudiation |A user disputes a return, inspection, deduction, or issue. |Append-only audit entries with actor, timestamp, event, entity, and details; deposit entries reference the loan and trigger.
+|T-004 |Information disclosure |A client requests member, loan, or deposit data through an interface. |Return only contract DTOs; enforce operation role policy; keep authentication as a deployment prerequisite outside release 1.
+|T-005 |Denial of service |Repeated or oversized requests block counter operations. |Bound request sizes, validate identifiers and arrays, use indexed queries, and keep eligibility read-only.
+|T-006 |Elevation of privilege |A member or clerk attempts technician operations. |Central application authorization policy applied before every use case; REST and CLI adapters cannot call persistence directly.
+|===
+
+=== 8.2 Security
+
+Authorization is interface-level role authorization, not authentication. The application service receives a normalized role and checks the use-case permission matrix. `Workshop Technician` is required for inspection, maintenance, retirement, inspection listing, and reservation expiry; `Counter Clerk` is required for eligibility, issue, extension, return, and allocation; `Member` is required for member hold operations. All role checks are tested through both REST and CLI where available. Controls close T-001, T-002, T-004, and T-006.
+
+=== 8.3 Test
+
+The testing pyramid is:
+
+* Domain unit tests for deposit rounding and bounds, eligibility predicates, state machines, queue order, suspension, maintenance thresholds, and invariants.
+* Application service tests with an in-memory or transactional test repository for atomic success and rollback behavior.
+* Contract tests for REST status codes, error shapes, JSON fields, roles, and CLI stdout/stderr/exit codes.
+* A small number of end-to-end tests using the production persistence adapter and local process.
+
+Tests trace to UC-01 through UC-07 and BR identifiers. Required invariants include non-negative deposit balance, deduction no greater than collected deposit, at most one active loan per item, at most one inspection report per loan, exactly one usage increment per completed loan, and stable hold ordering.
+
+=== 8.4 Observability
+
+The system must provide:
+
+* Structured operation logs containing operation, actor role, outcome, stable error code, and correlation identifier.
+* Metrics for operation latency, rejected issues by reason, inspection backlog, maintenance-due items, reservation expiry outcomes, and transaction failures.
+* Audit entries as the domain record of state-changing actions, separate from diagnostic logs.
+* Deposit ledger queries that reconstruct a loan balance from immutable transactions.
+
+Logs must not replace the audit trail. Diagnostic retention and backup policy are operational decisions still open.
+
+=== 8.5 Error Handling
+
+Malformed input is rejected at the adapter boundary. Domain conflicts and validation failures are mapped to the status and stable error codes in the system interface specification. A failed state-changing operation rolls back all domain, audit, and deposit changes. Retried commands require idempotency semantics to be decided; until then, clients must not assume an unsafe retry is harmless. There is no external dependency requiring a circuit breaker or remote fallback.
+
+=== 8.6 Persistence and Transactions
+
+The persistence adapter must support transactions, uniqueness constraints, indexed lookup, and a durable append-only representation for deposit and audit records. A unit of work wraps every state-changing application service. The transaction includes domain state plus required audit and deposit entries. Read-only eligibility checks do not write.
+
+=== 8.7 Time and Money
+
+`Clock` is injected into application services. It supplies both current calendar date for overdue and expiry rules and UTC instants for audit and deposit timestamps. All monetary calculations use integer cents. The deposit policy is `ceil(replacementValueCents * 0.20)`, bounded to 500 through 10000 cents.
+
+== 9. Architecture Decisions
+
+=== ADR-001: Choose a modular monolith
+
+Decision: implement one process with explicit modules and ports.
+
+[cols="1,2,2,2"]
+|===
+|Criteria |Modular monolith |Microservices |Layered monolith without module rules
+
+|Atomicity |+ One local transaction spans domain, audit, and deposit. |- Distributed transaction complexity. |+ Local transaction.
+|Operational fit |+ One local process and no external services. |- Requires service deployment and operations. |+ One process.
+|Boundary quality |+ Enforced module contracts and inward dependencies. |+ Strong process boundaries. |- Boundaries tend to erode.
+|Change cost |+ Low for 400 items and 800 members. |- High coordination cost. |+ Low initially.
+|===
+
+The modular monolith wins because it preserves the required atomicity and operational simplicity while making the domain boundary testable.
+
+=== ADR-002: Use an immutable deposit ledger
+
+Decision: record collection, deduction, release, and retention as immutable transactions and derive balance from them.
+
+[cols="1,2,2,2"]
+|===
+|Criteria |Immutable ledger |Mutable deposit balance |External payment ledger
+
+|Traceability |+ Every transaction has timestamp, amount, type, trigger, and loan reference. |- Requires compensating history. |+ Potentially strong.
+|Atomicity |+ Same local transaction as loan and inspection. |+ Simple local update. |- External consistency risk.
+|Correctness |+ Recalculation detects drift; integer cents. |- Silent overwrite possible. |+ Specialist capability.
+|Scope fit |+ No payment integration required. |+ Fits scope. |- Explicitly out of scope.
+|===
+
+=== ADR-003: Share domain services across REST and CLI
+
+Decision: adapters map into common application commands; they do not implement use-case rules independently.
+
+[cols="1,2,2,2"]
+|===
+|Criteria |Shared application services |Separate REST and CLI logic |Generate one interface from the other
+
+|Cross-interface invariants |+ One rule path. |- Drift risk. |+ Possible but adds tooling.
+|Testability |+ Service-level tests cover both adapters. |- Duplicate tests and behavior. |+ Depends on generator quality.
+|Release-1 complexity |+ Small and direct. |+ Simple initially but costly later. |- Unnecessary constraint.
+|===
+
+=== ADR-004: Resolve reservation expiry explicitly
+
+Decision: provide the specified expiry command and keep scheduling/lazy execution open.
+
+[cols="1,2,2,2"]
+|===
+|Criteria |Explicit command |Embedded scheduler |Lazy resolution only
+
+|Single-process fit |+ Works locally and visibly. |+ Possible but adds lifecycle behavior. |+ Minimal.
+|Operational predictability |+ Operator can run and audit it. |+ Automatic but less visible. |- Depends on traffic.
+|Contract certainty |+ Already specified by interface. |+ Not specified. |- Not specified.
+|===
+
+== 10. Quality Requirements
+
+=== 10.1 Security and Correctness Scenarios
+
+[cols="1,2,2,2,2,2"]
+|===
+|Source |Stimulus |Artifact |Environment |Response |Response Measure
+
+|Member or malicious client |Attempts to issue an instruction-required item without instruction through REST or CLI. |Issue application service |Normal local operation |Reject before loan or deposit mutation. |One automated test per available interface demonstrates no issue is created.
+|Counter clerk |Checks eligibility at stated data volume. |Eligibility service and repository indexes |400 items, 800 members |Return a reasoned decision without writes. |Under 300 ms at the 95th percentile over 100 calls.
+|Technician |Completes an inspection with deduction. |Inspection service, deposit ledger, audit log |Normal local operation |Close loan, record bounded deposit outcome, append audit. |Audit includes timestamp, amount, trigger, and inspection reference; ledger recomputes with 0-cent deviation.
+|Concurrent clerks |Issue the same item at once. |Unit of work and item repository |Two concurrent transactions |Exactly one loan commits; the other receives a conflict. |No more than one active loan and one collection transaction for the item/loan outcome.
+|===
+
+=== 10.2 Additional Derived Scenarios
+
+[cols="1,2,2,2,2,2"]
+|===
+|Source |Stimulus |Artifact |Environment |Response |Response Measure
+
+|Counter clerk |Returns an active loan. |Return service |Normal local operation |Item becomes `IN_INSPECTION`; loan remains awaiting inspection. |No issue eligibility until inspection completion.
+|Technician |Completes maintenance on a due item. |Maintenance service |Item has no active loan or inspection |Reset usage counter and set item `AVAILABLE`. |Counter is exactly zero after success.
+|Member |Creates a hold while suspended. |Hold service |Category queue exists |Append hold without borrowing permission loss or queue reorder. |Hold remains ordered by receipt timestamp and stable hold ID.
+|Client |Submits deduction above collected deposit. |Deposit policy |Inspection transaction |Reject or cap according to the contract; never create a balance below zero. |Deduction is never greater than collected cents.
+|===
+
+== 11. Risks and Technical Debt
+
+=== 11.1 Risks
+
+[cols="1,3,3,2"]
+|===
+|ID |Risk |Impact |Mitigation or decision
+
+|R-001 |Release-1 role headers and CLI flags are not authenticated. |Unauthorized local or network caller could act as another role. |Document deployment trust boundary, reject missing/unsupported roles, and plan authentication as a separate capability. Related threat: T-001.
+|R-002 |Concurrent issue, inspection, or allocation can create duplicate state without correct locking. |Incorrect availability, duplicate deposits, or duplicate reports. |Transactional write conflict handling, uniqueness constraints, and concurrency tests. Related threat: T-002.
+|R-003 |Deposit ledger data loss or corruption prevents financial reconciliation. |Money traceability is lost. |Durable local persistence, backups, restore drills, and integrity checks. Backup policy remains open. Related threat: T-003.
+|R-004 |Damage attribution across prior inspection reports is ambiguous. |Wrong loan may receive a deduction. |Keep prior inspection history available and resolve the domain rule before implementation. Related to UC-05 open question.
+|R-005 |Reservation expiry processing is not automated. |Expired reservations may block allocation until a command runs. |Expose explicit expiry command; decide whether scheduling or lazy processing is needed. Related to ADR-004.
+|===
+
+=== 11.2 Technical Debt
+
+* The persistence technology and schema migration tool are intentionally undecided.
+* Idempotency keys for retried state-changing commands are still an open developer question.
+* Backup, restoration, and data-directory conventions are still open operational questions.
+* Authentication is outside release 1 and must not be mistaken for the role header contract.
+* A future notification adapter may be added only outside the release-1 core and without changing domain invariants.
+
+=== 11.3 ATAM Tradeoffs
+
+The main sensitivity point is the transaction boundary: splitting audit, deposit, or domain state into separate services would directly threaten deposit correctness and traceability. A second sensitivity point is the shared eligibility policy: duplicate interface logic would threaten security. The principal tradeoff is operational simplicity versus automated reservation expiry; release 1 chooses explicit commands until operational needs are known.
+
+== 12. Glossary
+
+[cols="1,3"]
+|===
+|Term |Meaning
+
+|Available |An item can be issued, subject to member eligibility and reservation state.
+|Awaiting inspection |A returned loan remains open while the technician has not completed the inspection.
+|Deposit |Safeguarded amount collected at issue and released, deducted, or retained at inspection; never a fee.
+|Deposit transaction |Immutable collection, deduction, release, or retention record for a loan.
+|Due for maintenance |Item state reached after the usage threshold; item cannot be issued or reserved.
+|Inspection |Technician process that closes a returned loan and determines item outcome and deposit result.
+|Hold |A member's queue position for a category.
+|Inspection report |The authoritative record that closes a loan and determines its deposit outcome.
+|Item |A lendable physical object with a unique inventory number.
+|Loan |The record of an item issued to a member; complete only after inspection.
+|Reservation |A temporary three-calendar-day allocation of an available item to the next eligible hold member.
+|Retired |Terminal item state for a lost or unrepairable item.
+|Suspended |Derived member state while at least one overdue loan remains unreturned or uninspected.
+|Usage counter |Number of completed loans since the last maintenance completion.
+|===
+
+== Open Questions and Handoff
+
+The architecture is implementable within the stated release-1 constraints, but these questions remain intentionally open:
+
+* Which persistence technology and migration approach are selected?
+* Are duplicate holds for one member and category rejected or merged?
+* What idempotency key is used for retried issue, return, inspection, maintenance, and reservation commands?
+* How is prior damage selected when several historical inspection reports mention it?
+* Are reservation expiry commands run manually, lazily, or by a local scheduler?
+* What backup, restore, and local data-directory procedure is required?
+
+These decisions must be resolved before the corresponding implementation slices are considered complete.
