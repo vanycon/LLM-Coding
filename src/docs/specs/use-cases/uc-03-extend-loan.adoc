@@ -1,0 +1,72 @@
+= UC-03: Extend Loan
+
+== Primary Actor
+
+* Karim, Counter Clerk
+
+== Trigger
+
+* A member requests an extension for an active loan before the return is made.
+
+== Main Success Scenario
+
+. The clerk selects the active loan.
+. The system checks that the loan is still active.
+. The system verifies the loan has not already been extended once.
+. The system verifies there is no open hold for the category.
+. The system verifies the loan is not overdue.
+. The system adds the full category duration to the current return deadline.
+. The system records the extension event in the audit trail.
+. The system returns the new return deadline to the clerk.
+
+== Extensions
+
+* 5a. The loan is overdue.
+  The extension is rejected and the due date remains unchanged.
+* 4a. An open hold exists for the category.
+  The extension is rejected to preserve the queue semantics.
+* 3a. The loan has already been extended once.
+  The extension is rejected.
+* 2a. The loan is no longer active.
+  The request is rejected.
+
+== Postconditions
+
+* An accepted extension updates the due date by one full category duration.
+* A rejected extension leaves the loan unchanged and records the reason.
+* All extension decisions are auditable.
+
+== Business Rules
+
+* BR-01: A loan may be extended once per loan.
+* BR-02: An extension adds exactly the full category duration.
+* BR-03: An extension is excluded if an open hold exists for the category.
+* BR-04: An extension is excluded if the loan is already overdue.
+* BR-05: Every extension decision is recorded in an audit trail.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: extension is accepted for eligible loan
+  Given a member has an active loan without a prior extension
+  And the loan is not overdue
+  And no open hold exists for the category
+  When the counter clerk requests an extension
+  Then the due date is moved forward by the full category duration
+  And the loan is marked as extended once
+  And the audit trail records the previous and new due date
+
+Scenario: extension is rejected for overdue loan
+  Given a member has an active loan whose deadline is in the past
+  When the counter clerk requests an extension
+  Then the extension is rejected
+  And the return deadline remains unchanged
+  And the reason is recorded in the audit trail
+
+Scenario: extension is rejected when a hold exists
+  Given a member has an active loan and an open hold exists for the same category
+  When the counter clerk requests an extension
+  Then the extension is rejected
+  And the loan remains unchanged
+----

@@ -1,0 +1,101 @@
+= UC-01: Check Item Eligibility
+
+== Primary Actor
+
+* Karim, Counter Clerk
+
+== Trigger
+
+* The clerk asks whether a member may borrow a specific item before any loan is created.
+
+== Main Success Scenario
+
+. The clerk provides the member identifier and the item identifier.
+. The system reads the current date from the configured time source.
+. The system loads the member state, item state, category rules, active loans, holds, and reservation information.
+. The system evaluates the issuance conditions in order:
+   - item exists and is not retired
+   - item is not due for maintenance
+   - item is not in inspection
+   - item is available or reserved for this member
+   - member is not suspended
+   - member has fewer than three active loans
+   - category instruction is satisfied
+   - any active reservation is still valid
+. The system returns an eligible result and no state change is made.
+. If issue is then executed, the deposit collection is still created as part of the issue flow, not as part of the validation step.
+
+== Extensions
+
+* 4a. The item does not exist.
+  The system returns an ineligible result and leaves all state unchanged.
+* 4b. The item is due for maintenance.
+  The system returns an ineligible result with reason `maintenance_due`.
+* 4c. The item is in inspection.
+  The system returns an ineligible result because returned items remain unavailable until inspection completes.
+* 4d. The item is retired.
+  The system returns an ineligible result.
+* 4e. The item is reserved for another member.
+  The system returns an ineligible result unless the hold is valid for the current member.
+* 4f. The member is suspended.
+  The system returns an ineligible result. Suspension is owned by the system and begins when the return deadline has passed and the item has not been returned.
+* 4g. The member already has three simultaneous loans.
+  The system returns an ineligible result. Holds do not count toward the limit.
+* 4h. The item requires instruction and the member has no documented instruction.
+  The system returns an ineligible result.
+* 4i. The reservation has expired.
+  The system returns an ineligible result and leaves state unchanged.
+* 4j. The member has an active hold but is suspended.
+  The system returns an ineligible result and keeps the member in their queue position without allowing the reservation to be collected.
+
+== Postconditions
+
+* If the item is eligible, the validation result is returned without changing state.
+* If the item is ineligible, the system returns the reason and preserves the original state.
+* The eligibility check itself never creates a loan, reservation, or deposit transaction.
+
+== Business Rules
+
+* BR-01: The system owns member state, including suspension, instruction status, and active-loan count.
+* BR-02: A member is suspended as soon as at least one of their loans is overdue and the item has not been returned.
+* BR-03: A suspended member may not borrow.
+* BR-04: A returned item moves to inspection and is unavailable until inspection is completed.
+* BR-05: An item due for maintenance is neither issued nor reserved.
+* BR-06: An item may be issued only if it is available or reserved for this member.
+* BR-07: A member may have at most three simultaneous loans. Holds do not count toward this limit.
+* BR-08: An item requiring instruction may only be issued to a member with documented instruction for that category.
+* BR-09: Any rejected issue attempt must return a reason without changing state.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: Eligible item with valid member state
+  Given a member with no suspension, fewer than three active loans, and valid instruction
+  And the item exists, is available, is not under maintenance, and is not in inspection
+  When the system checks item eligibility for issue
+  Then the system returns eligible
+  And the item state remains unchanged
+  And no reservation, loan, or deposit record is created by the eligibility check itself
+
+Scenario: Suspension blocks borrowing
+  Given a member has a loan whose return deadline is before today
+  And the item has not been returned
+  When the system checks the member’s eligibility for issue
+  Then the member is considered suspended
+  And the system returns ineligible
+  And no state changes occur as a result of the rejected attempt
+
+Scenario: Maintenance blocks issue
+  Given an item is marked due for maintenance
+  When the system checks item eligibility for issue
+  Then the system returns ineligible with reason maintenance_due
+  And no issue, reservation, or deposit transaction is created
+
+Scenario: Instruction requirement blocks issue
+  Given an item requires instruction for its category
+  And the member does not have documented instruction for that category
+  When the system checks item eligibility
+  Then the system returns ineligible
+  And no state changes occur
+----

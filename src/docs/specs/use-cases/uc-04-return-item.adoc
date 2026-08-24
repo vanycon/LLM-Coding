@@ -1,0 +1,73 @@
+= UC-04: Return Item
+
+== Primary Actor
+
+* Karim, Counter Clerk
+
+== Trigger
+
+* A member returns an item to the counter and the clerk records the return.
+
+== Main Success Scenario
+
+. The clerk identifies the item and its active loan.
+. The system confirms the item is currently on loan and the return has not already been recorded.
+. The clerk records the return timestamp and any handover irregularities.
+. The system creates a return audit entry containing item, loan, actor, timestamp, and irregularities.
+. The system changes the item state to in inspection.
+. The system marks the item unavailable for issue and reservation.
+. The system keeps the loan open until inspection is completed.
+. The system checks whether the loan is overdue and applies suspension rules if necessary.
+. The system confirms the return and forwards the item for inspection.
+
+== Extensions
+
+* 2a. The item is not found or is not on loan.
+  The system rejects the return and leaves state unchanged.
+* 3a. The item is damaged or missing parts.
+  The irregularity is recorded at return, but no deposit decision is made at the counter.
+* 8a. The loan is overdue.
+  The member is suspended immediately according to the suspension rule.
+* 9a. The audit record cannot be written.
+  The system rejects the return and keeps the item in on loan state until the issue is resolved.
+
+== Postconditions
+
+* The item is in inspection and unavailable for loan.
+* The loan remains open until the workshop technician confirms inspection.
+* The return event is auditable.
+* The member may be suspended if the loan is overdue.
+
+== Business Rules
+
+* BR-01: Returning an item moves it into inspection; it does not close the loan.
+* BR-02: The counter clerk records irregularities, but the deposit is decided later by the workshop technician.
+* BR-03: An item becomes unavailable immediately when it is returned.
+* BR-04: A member is suspended as soon as at least one of their loans is overdue.
+* BR-05: Every return creates an audit entry with timestamp, actor, item, loan, and irregularities.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: normal return is accepted
+  Given a member has an active loan for item I-204
+  When the counter clerk records the return
+  Then the item is set to in_inspection
+  And the item becomes unavailable immediately
+  And the loan remains open until inspection is completed
+  And an audit entry is created for the return
+
+Scenario: overdue loan triggers suspension on return
+  Given a member has an overdue loan
+  And the item is returned at the counter
+  When the return is recorded
+  Then the member is suspended
+  And the return is still accepted
+
+Scenario: deposit is not decided at the counter
+  Given a member returns a damaged item
+  When the clerk records the return
+  Then the irregularities are saved with the return event
+  And no deposit deduction is decided at the counter
+----

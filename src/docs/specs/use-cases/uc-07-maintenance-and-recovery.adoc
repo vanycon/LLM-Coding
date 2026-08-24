@@ -1,0 +1,55 @@
+= UC-07: Maintenance and Recovery
+
+== Primary Actor
+
+* Rolf, Workshop Technician
+
+== Trigger
+
+* An item has reached the category maintenance threshold or is already marked due for maintenance.
+
+== Main Success Scenario
+
+. The technician selects an item in the maintenance queue.
+. The system confirms that the item is due for maintenance and cannot be issued or reserved.
+. The technician performs maintenance and marks the item serviced.
+. The system resets the item’s usage counter to zero.
+. The system changes the item state from due for maintenance to available.
+. The system confirms completion to the technician.
+
+== Extensions
+
+* 3a. The item is not repairable.
+  The item is retired and permanently removed from circulation.
+* 2a. The item is still in use or has an active loan.
+  The maintenance action is not allowed until inspection closes the loan.
+
+== Postconditions
+
+* An item that has completed maintenance becomes available again.
+* An item that cannot be repaired becomes retired.
+* The usage counter is reset only after successful completion of maintenance.
+
+== Business Rules
+
+* BR-01: Every completed loan increments the item usage counter by one.
+* BR-02: When the category threshold is reached, the item becomes due for maintenance after inspection.
+* BR-03: An item due for maintenance is neither issued nor reserved.
+* BR-04: After maintenance, the workshop technician resets the usage counter to zero and returns the item to available state.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: item reaches maintenance threshold and is blocked
+  Given an item has reached its category maintenance interval
+  When the inspection is completed
+  Then the item is marked due_for_maintenance
+  And the item is not eligible for issue or reservation
+
+Scenario: maintenance completion restores availability
+  Given an item is due for maintenance
+  When the technician marks maintenance as complete
+  Then the usage counter resets to zero
+  And the item becomes available
+----

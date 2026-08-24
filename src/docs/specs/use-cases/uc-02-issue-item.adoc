@@ -1,0 +1,83 @@
+= UC-02: Issue Item
+
+== Primary Actor
+
+* Karim, Counter Clerk
+
+== Trigger
+
+* The clerk confirms an issue after a successful eligibility check or a member requests a direct issue for a specific item.
+
+== Main Success Scenario
+
+. The clerk selects the member and item.
+. The system re-validates the issue against the current state.
+. The system confirms the item is eligible for issue.
+. The system creates the loan record and sets the return deadline as issue date plus the category’s loan duration.
+. The system collects the deposit amount based on the category and replacement value.
+. The system records a deposit collection transaction with timestamp, amount, and trigger.
+. The system updates the member’s active-loan count and item state to on loan.
+. The system confirms the successful issue to the clerk.
+
+== Extensions
+
+* 2a. Eligibility fails during re-validation.
+  The system rejects the issue and does not create the loan, reservation, or deposit movement.
+* 3a. The item is reserved for the member.
+  The system accepts the issue and uses the reservation without creating a duplicate loan.
+* 5a. The calculated deposit is below the minimum.
+  The system sets it to the minimum allowed amount.
+* 5b. The calculated deposit is above the maximum.
+  The system caps it at the maximum allowed amount.
+* 7a. The member has reached the maximum number of active loans.
+  The issue is rejected before any state mutation.
+
+== Postconditions
+
+* A valid loan exists for the member and item.
+* The item is no longer available.
+* The deposit ledger contains a collection entry.
+* The member has the correct active-loan count.
+
+== Business Rules
+
+* BR-01: An item is issued only if it is available or reserved for this member.
+* BR-02: A member may have at most three simultaneous loans.
+* BR-03: A suspended member may not borrow.
+* BR-04: A category may require documented instruction before issue.
+* BR-05: The deposit is 20 percent of the replacement value, rounded up to the next euro, with a minimum of 5 and maximum of 100.
+* BR-06: Each issue creates a traceable deposit transaction with timestamp, amount, and trigger.
+* BR-07: The return deadline is set to the issue date plus the category loan duration.
+* BR-08: A valid issue updates item state and member state atomically.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: valid issue succeeds
+  Given a member is eligible to borrow the item
+  And the item is available
+  When the clerk confirms the issue
+  Then the loan is created
+  And the return deadline is set to issue date plus category duration
+  And the deposit collection entry is recorded
+  And the item state changes to on_loan
+
+Scenario: issue is rejected if the member reaches the loan limit
+  Given a member already has three active loans
+  When the clerk confirms the issue
+  Then the system rejects the issue
+  And no loan, reservation, or deposit entry is created
+
+Scenario: issue is rejected for suspended members
+  Given a member is suspended
+  When the clerk confirms the issue
+  Then the system rejects the issue
+  And the item remains available for the current state
+
+Scenario: deposit is rounded up
+  Given an item has a replacement value that produces a 20% deposit with decimals
+  When the issue is processed
+  Then the system stores the deposit rounded up to the next whole euro
+  And the deposit respects the defined minimum and maximum values
+----

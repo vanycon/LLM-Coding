@@ -1,0 +1,70 @@
+= UC-06: Create and Resolve Hold
+
+== Primary Actor
+
+* Sabine, Member
+
+== Trigger
+
+* A member requests a hold for a category so they may borrow an item once one becomes available.
+
+== Main Success Scenario
+
+. The member selects a category and requests a hold.
+. The system checks whether the member is suspended.
+. The system creates a queue entry for the category ordered by receipt time.
+. The system returns the member’s queue position.
+. When an item becomes available after inspection, the system checks the first member in the queue.
+. If the next member is eligible, the system creates a reservation for that member.
+. The reservation expires after three calendar days.
+. If the reservation expires, the system advances the queue or leaves the item available.
+. The system confirms the hold or reservation outcome to the member.
+
+== Extensions
+
+* 2a. The member is suspended.
+  The hold is accepted but the member cannot collect the item. Their queue position is retained.
+* 6a. The first member in queue is suspended.
+  The reservation is skipped and the queue remains unchanged.
+* 7a. The reservation expires.
+  The system moves to the next queue member or marks the item available.
+* 5a. The item becomes due for maintenance after inspection.
+  No reservation is created and the queue remains unchanged.
+
+== Postconditions
+
+* The category queue is preserved in order.
+* A reservation is valid for up to three calendar days.
+* A suspended member keeps queue position but cannot collect.
+
+== Business Rules
+
+* BR-01: A hold applies to a category, not an individual item.
+* BR-02: Holds form a queue ordered by time of receipt.
+* BR-03: If an item becomes available after inspection and a hold exists, the first queue member receives a reservation.
+* BR-04: A reservation expires after three calendar days.
+* BR-05: A suspended member may place a hold but may not collect the item.
+* BR-06: A suspended member’s reservation is skipped without removing their queue place.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: valid hold is created
+  Given a member is eligible to place a hold
+  When the member requests a hold for a category
+  Then the system records the hold in queue order
+  And the system returns the member’s queue position
+
+Scenario: suspended member retains queue position
+  Given a member is suspended
+  When the member places a hold
+  Then the hold is accepted
+  And the member cannot collect the item
+  And the member keeps their queue position
+
+Scenario: expired reservation advances queue
+  Given a reservation for a member has existed for three calendar days
+  When the expiration threshold is reached
+  Then the system advances to the next queue member or marks the item available
+----

@@ -1,0 +1,79 @@
+= UC-05: Inspect Returned Item
+
+== Primary Actor
+
+* Rolf, Workshop Technician
+
+== Trigger
+
+* A returned item is available for inspection after it has been received at the counter.
+
+== Main Success Scenario
+
+. The technician selects the next returned item.
+. The system displays the item, the active loan, the return irregularities, and previous inspection history.
+. The technician records the inspection result:
+   - available
+   - due for maintenance
+   - retired
+. The system creates an inspection report and closes the loan.
+. The system determines whether the item should be released, deducted, or retained according to deposit rules.
+. The system writes a deposit transaction for deduction, release, or retention.
+. The system updates the item state and the item’s usage counter when the outcome requires it.
+. The system confirms completion to the technician.
+
+== Extensions
+
+* 3a. The item has no damage.
+  The item becomes available after inspection.
+* 3b. The item has reached the maintenance threshold.
+  The item is marked due for maintenance and not available for issue.
+* 3c. The item is lost or beyond repair.
+  The item is retired and the deposit is retained in full.
+* 4a. Damage is recorded from a previous loan.
+  The system attributes the damage to the earlier loan and does not charge the current loan.
+* 5a. The deduction would exceed the collected deposit.
+  The system caps the deduction at the collected deposit.
+
+== Postconditions
+
+* The loan is closed by the inspection report.
+* The item enters one of the valid states: available, due for maintenance, or retired.
+* The deposit ledger records the result.
+* Any overdue suspension may end once all overdue loans for the member have been inspected.
+
+== Business Rules
+
+* BR-01: The inspection report closes the loan and determines any deposit deduction.
+* BR-02: Damage is attributed to the current loan unless it was already recorded in an earlier inspection report.
+* BR-03: An item becomes due for maintenance after inspection if the usage threshold has been reached.
+* BR-04: A deduction may not exceed the collected deposit.
+* BR-05: A lost item retains the full deposit and is retired.
+* BR-06: Every deposit transaction is written with timestamp, amount, and trigger.
+
+== Acceptance Criteria
+
+[source,gherkin]
+----
+Scenario: item inspected without damage becomes available
+  Given a returned item has no damage
+  And the item has not reached its maintenance threshold
+  When the workshop technician completes inspection
+  Then the loan closes
+  And the item is marked available
+  And the deposit is released if required
+
+Scenario: item reaching maintenance threshold becomes due for maintenance
+  Given the item has reached the category maintenance threshold
+  When the workshop technician completes inspection
+  Then the loan closes
+  And the item is marked due_for_maintenance
+  And the item is not available for issue
+
+Scenario: exceeding deposit deduction is capped
+  Given a collected deposit of 50 euros
+  And the inspection report decides on a deduction of 70 euros
+  When the deduction is applied
+  Then the deduction is capped at 50 euros
+  And the loan is closed
+----
