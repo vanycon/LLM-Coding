@@ -1,0 +1,294 @@
+= Supplementary Specification: Leihgut
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Purpose
+
+This document defines the data model, state transitions, validation rules, activity flows, and traceability needed to implement the release 1 use cases. It supplements the product requirements in `prd.adoc` and the technical contracts in `system-interfaces.adoc`.
+
+== Entity model
+
+[cols="1,2,3"]
+|===
+|Entity |Required attributes |Relationships and invariants
+
+|Category
+|`categoryId`, `name`, `loanDurationDays`, `maintenanceIntervalLoans`, `instructionRequired`
+|One category has many items. Duration and maintenance interval are positive integers.
+
+|Item
+|`itemId`, `inventoryNumber`, `categoryId`, `replacementValueCents`, `status`, `usageCounter`
+|Inventory number is unique. Exactly one category. Replacement value is positive. Usage counter is non-negative.
+
+|Member
+|`memberId`, `status`
+|Status is derived from overdue loans. A member may have at most three simultaneous loans.
+
+|Instruction
+|`memberId`, `categoryId`, `recordedAt`
+|A member may have at most one current instruction record per category.
+
+|Loan
+|`loanId`, `itemId`, `memberId`, `issuedAt`, `returnDeadline`, `status`, `extensionUsed`
+|One item has at most one active loan. A loan is complete only after inspection.
+
+|Return
+|`returnId`, `loanId`, `returnedAt`, `irregularities`
+|At most one return per loan. A return does not close a loan.
+
+|Inspection Report
+|`inspectionReportId`, `loanId`, `inspectedAt`, `outcome`, `damage`, `deductionCents`, `notes`
+|At most one report per loan. The report closes the loan.
+
+|Deposit Transaction
+|`transactionId`, `loanId`, `timestamp`, `type`, `amountCents`, `trigger`
+|Immutable. Amount is positive. Collection, deduction, and release reference the loan.
+
+|Hold
+|`holdId`, `memberId`, `categoryId`, `receivedAt`, `status`
+|A hold belongs to one category. Queue order is by `receivedAt` and stable by `holdId`.
+
+|Reservation
+|`reservationId`, `itemId`, `memberId`, `createdAt`, `expiresAt`, `status`
+|A reservation lasts three calendar days. An item has at most one active reservation.
+
+|Audit Entry
+|`auditId`, `timestamp`, `actor`, `eventType`, `entityType`, `entityId`, `details`
+|Append-only. State-changing operations reference their affected entity.
+|===
+
+The current deposit balance for a loan is derived as:
+
+[source,text]
+----
+balance = sum(collection transactions)
+        - sum(deduction transactions)
+        - sum(release transactions)
+----
+
+The balance shall never be negative. A completed loan has exactly one final deposit outcome: full release, partial release after deduction, or full retention for a lost item.
+
+== State machines
+
+=== Item state
+
+[plantuml]
+....
+@startuml
+[*] --> AVAILABLE
+AVAILABLE --> ON_LOAN : issue
+AVAILABLE --> RESERVED : allocate reservation
+RESERVED --> ON_LOAN : issue to reserved member
+AVAILABLE --> DUE_FOR_MAINTENANCE : inspection reaches interval
+AVAILABLE --> IN_INSPECTION : return
+ON_LOAN --> IN_INSPECTION : return
+IN_INSPECTION --> AVAILABLE : inspection without maintenance or retirement
+IN_INSPECTION --> DUE_FOR_MAINTENANCE : inspection reaches interval
+IN_INSPECTION --> RETIRED : lost or beyond repair
+DUE_FOR_MAINTENANCE --> AVAILABLE : maintenance completed
+AVAILABLE --> RETIRED : retirement
+RESERVED --> AVAILABLE : reservation expires with no next member
+RESERVED --> RESERVED : reservation advances to next member
+@enduml
+....
+
+`DUE_FOR_MAINTENANCE` items cannot be issued or reserved. `RETIRED` is terminal.
+
+=== Loan state
+
+[plantuml]
+....
+@startuml
+[*] --> ACTIVE : issue
+ACTIVE --> ACTIVE : extension once
+ACTIVE --> AWAITING_INSPECTION : return
+AWAITING_INSPECTION --> COMPLETED : inspection report
+@enduml
+....
+
+An `AWAITING_INSPECTION` loan counts as a simultaneous loan until the inspection report completes it. It therefore continues to count toward the member limit of three.
+
+=== Reservation state
+
+[plantuml]
+....
+@startuml
+[*] --> ACTIVE : allocate
+ACTIVE --> COLLECTED : issue to member
+ACTIVE --> EXPIRED : three calendar days pass
+ACTIVE --> SKIPPED : member suspended at allocation
+EXPIRED --> ACTIVE : allocate to next member
+EXPIRED --> AVAILABLE : no next member
+SKIPPED --> ACTIVE : member becomes eligible at a later allocation
+@enduml
+....
+
+A skipped reservation retains the member's hold and queue position. A reservation is not created for an item due for maintenance.
+
+=== Member state
+
+[plantuml]
+....
+@startuml
+[*] --> ACTIVE
+ACTIVE --> SUSPENDED : any unreturned loan is overdue
+SUSPENDED --> ACTIVE : all overdue loans have completed inspection
+SUSPENDED --> SUSPENDED : at least one overdue loan remains
+@enduml
+....
+
+Suspension is derived from the current date, return status, and inspection completion. No manual approval is required.
+
+== Validation rules
+
+* `inventoryNumber`, `categoryId`, `memberId`, and all other identifiers are required and unique within their entity type.
+* `loanDurationDays` and `maintenanceIntervalLoans` are positive integers.
+* `replacementValueCents` and all monetary amounts are non-negative integer cents.
+* A calculated deposit is `ceil(replacementValueCents * 0.20)`, bounded to a minimum of 500 cents and a maximum of 10000 cents.
+* A deduction is non-negative and cannot exceed the collected deposit.
+* An issue requires an available item or an active reservation for the member.
+* An issue rejects suspended members, members with three simultaneous loans, missing required instruction, maintenance-due items, inspection items, and retired items.
+* An extension requires an active loan, no prior extension, no open category hold, and a non-overdue loan.
+* A return requires an active loan without a prior return and accepts irregularities but no deposit decision.
+* An inspection requires a returned loan awaiting inspection and creates exactly one inspection report.
+* Maintenance completion requires an item in `DUE_FOR_MAINTENANCE` without an active loan or inspection.
+* A hold requires an existing member and category. A suspended member may create one.
+* A reservation expiry is evaluated against calendar dates, not elapsed hours.
+
+== Activity diagrams
+
+=== Issue flow
+
+[plantuml]
+....
+@startuml
+start
+:Receive member and item;
+:Re-evaluate eligibility;
+if (Eligible?) then (yes)
+  :Create loan;
+  :Calculate deposit;
+  :Record collection transaction;
+  :Set return deadline;
+  :Set item ON_LOAN;
+  :Audit state changes;
+  stop
+else (no)
+  :Return stable error code;
+  :Persist no state change;
+  stop
+endif
+@enduml
+....
+
+=== Return and inspection flow
+
+[plantuml]
+....
+@startuml
+start
+:Receive returned item;
+if (Active loan without return?) then (yes)
+  :Record irregularities;
+  :Set item IN_INSPECTION;
+  :Keep loan AWAITING_INSPECTION;
+  :Audit return;
+  :Technician inspects item;
+  :Create inspection report;
+  :Close loan;
+  :Record deposit outcome;
+  if (Maintenance due?) then (yes)
+    :Set DUE_FOR_MAINTENANCE;
+  elseif (Retired?) then (yes)
+    :Set RETIRED;
+  else (available)
+    :Set AVAILABLE and allocate hold;
+  endif
+  stop
+else (no)
+  :Return DUPLICATE_RETURN or INVALID_STATE;
+  stop
+endif
+@enduml
+....
+
+=== Hold allocation flow
+
+[plantuml]
+....
+@startuml
+start
+:Item becomes available;
+:Read category queue in receipt order;
+while (Next hold exists?) is (yes)
+  if (Member suspended?) then (yes)
+    :Skip reservation;
+    :Retain queue position;
+  else (no)
+    :Create three-calendar-day reservation;
+    stop
+  endif
+endwhile (no)
+:Set item AVAILABLE;
+stop
+@enduml
+....
+
+== EARS requirements
+
+* When a clerk requests eligibility, the system shall return a reasoned decision without changing domain state.
+* When a clerk issues an eligible item, the system shall create one loan, one deposit collection transaction, and the required audit entries atomically.
+* If an issue condition fails, the system shall reject the issue and shall not create or mutate a loan, reservation, or deposit transaction.
+* When an item is returned, the system shall set it to `IN_INSPECTION` and shall leave the loan open until inspection completes.
+* When a technician completes an inspection, the system shall close the loan and create the applicable deposit outcome.
+* If the maintenance interval is reached, the system shall set the item to `DUE_FOR_MAINTENANCE` after inspection.
+* While an item is `DUE_FOR_MAINTENANCE`, the system shall reject issue and reservation requests.
+* When a member has an overdue unreturned loan, the system shall treat the member as suspended.
+* When a reservation reaches its third calendar day, the system shall resolve it for the next queue member or make the item available.
+* If a member is suspended during hold allocation, the system shall skip the reservation and retain the member's hold position.
+* When any state-changing operation succeeds, the system shall append an audit entry.
+* When a deposit transaction is created, the system shall append an immutable entry containing timestamp, amount, type, trigger, and loan reference.
+
+== Traceability matrix
+
+[cols="1,2,2,2"]
+|===
+|Rule group |Use case |REST or CLI interface |Acceptance coverage
+
+|Catalog and deposit calculation |UC-01, UC-02 |Eligibility GET; Issue POST |Eligibility and deposit scenarios
+|Issuance conditions |UC-01, UC-02 |Eligibility GET; Issue POST |Suspension, maintenance, instruction, and loan-limit scenarios
+|Extension |UC-03 |Extension POST; `leihgut` not required |Eligible extension, overdue, hold, and second-extension scenarios
+|Return |UC-04 |Return POST |Normal return, overdue return, irregularities scenarios
+|Inspection and deposit outcome |UC-05 |Inspection POST; `inspect complete` |Available, maintenance, deduction-cap scenarios
+|Holds and reservations |UC-06 |Hold POST, queue GET, allocation and expiry POST |Queue order, suspension skip, and expiry scenarios
+|Maintenance |UC-07 |Maintenance completion POST; `maintenance complete` |Threshold block and recovery scenarios
+|Crosscutting audit |UC-02 through UC-07 |All state-changing interfaces |Audit and immutable ledger requirements
+|===
+
+== Open questions
+
+=== Product Owner
+
+* Who is allowed to create, edit, suspend, and reactivate member records?
+* Are duplicate holds by the same member for one category rejected or merged?
+
+=== Architect
+
+* Which persistence technology provides the required atomic transactions and append-only ledger behavior?
+* Is reservation expiry processed by a scheduled command, lazily by requests, or both?
+
+=== Developer
+
+* What exact JSON representation should be used for irregularity and damage codes?
+* What idempotency key is required for retried issue, return, inspection, and maintenance requests?
+
+=== Domain Expert
+
+* Does an awaiting-inspection loan count toward the three-loan limit? This document currently specifies yes.
+* When prior damage is discovered, how is the earlier inspection report selected if several reports mention the same damage?
+
+=== Operations
+
+* How are backups and restoration handled for the immutable deposit ledger?
+* What local process start command and data directory are required for deployment?

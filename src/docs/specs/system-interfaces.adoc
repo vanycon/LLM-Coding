@@ -1,0 +1,349 @@
+= System Interface Specification: Leihgut
+:toc: left
+:toclevels: 3
+:sectnums:
+
+== Purpose and conventions
+
+This document specifies the technical interfaces for the release 1 use cases in the PRD. The REST API is the system interface for all use cases. The workshop CLI is an additional interface for technician tasks.
+
+All identifiers are opaque strings. Dates use ISO 8601 calendar format (`YYYY-MM-DD`). Timestamps use ISO 8601 instant format in UTC. Monetary amounts are integer euro cents unless explicitly stated otherwise. The system obtains today's date from its replaceable time source.
+
+The caller supplies its role through the `X-Role` HTTP header or the `--role` CLI option. Authentication and role verification are outside release 1, but each operation shall still reject a missing or unsupported role.
+
+Every state-changing operation is atomic: either all domain changes and required audit or deposit entries are persisted, or none are persisted.
+
+== Common error contract
+
+Error responses use this shape:
+
+[source,json]
+----
+{
+  "code": "MAINTENANCE_DUE",
+  "message": "The item is due for maintenance.",
+  "details": {}
+}
+----
+
+The `code` is stable and suitable for clients. The `message` is explanatory. `details` contains field-level or domain-specific information when available.
+
+[cols="1,2,3"]
+|===
+|HTTP status |Meaning |Examples
+
+|400 |Malformed request or invalid field |missing identifier, negative amount
+|403 |Role is not permitted for the operation |member role calls inspection
+|404 |Referenced entity does not exist |unknown item or loan
+|409 |Request conflicts with current domain state |loan limit, open hold, duplicate return
+|422 |Request is well-formed but violates a validation rule |deduction exceeds deposit
+|500 |Unexpected server failure |operation could not be completed
+|===
+
+Common domain error codes include `ITEM_NOT_FOUND`, `MEMBER_NOT_FOUND`, `LOAN_NOT_FOUND`, `ITEM_IN_INSPECTION`, `MAINTENANCE_DUE`, `ITEM_RETIRED`, `RESERVED_FOR_OTHER_MEMBER`, `MEMBER_SUSPENDED`, `LOAN_LIMIT_REACHED`, `INSTRUCTION_REQUIRED`, `LOAN_OVERDUE`, `EXTENSION_ALREADY_USED`, `OPEN_HOLD`, `INVALID_STATE`, `RESERVATION_EXPIRED`, `DUPLICATE_RETURN`, and `DEDUCTION_EXCEEDS_DEPOSIT`.
+
+== REST API
+
+=== UC-01 Check Item Eligibility
+
+`GET /items/{itemId}/eligibility?memberId={memberId}`
+
+Role: `Counter Clerk`.
+
+Input and validation:
+
+* `itemId` and `memberId` are required.
+* The item and member must exist.
+* The system evaluates item state, maintenance status, holds, reservation, member suspension, active-loan count, and instruction status.
+* This operation is read-only and never creates a loan, reservation, deposit entry, or audit entry.
+
+Successful response: `200 OK`.
+
+[source,json]
+----
+{
+  "eligible": true,
+  "reason": "ELIGIBLE",
+  "itemId": "I-204",
+  "memberId": "M-081",
+  "depositCents": 5000,
+  "returnDurationDays": 14,
+  "reservation": null
+}
+----
+
+An ineligible decision also returns `200 OK` because the eligibility check completed successfully:
+
+[source,json]
+----
+{
+  "eligible": false,
+  "reason": "INSTRUCTION_REQUIRED",
+  "itemId": "I-204",
+  "memberId": "M-081"
+}
+----
+
+Unknown entities return `404 Not Found`.
+
+=== UC-02 Issue Item
+
+`POST /loans`
+
+Role: `Counter Clerk`.
+
+Request:
+
+[source,json]
+----
+{
+  "itemId": "I-204",
+  "memberId": "M-081"
+}
+----
+
+Input and validation:
+
+* Both identifiers are required and must refer to existing entities.
+* The system re-evaluates eligibility in the same transaction; a previous eligibility response is not sufficient.
+* The item must be available or reserved for this member.
+* The member must not be suspended and must have fewer than three simultaneous loans.
+* Required instruction must exist for the item category.
+
+Successful response: `201 Created`.
+
+[source,json]
+----
+{
+  "loanId": "L-1001",
+  "itemId": "I-204",
+  "memberId": "M-081",
+  "issuedOn": "2026-08-24",
+  "returnDeadline": "2026-09-07",
+  "depositCents": 5000,
+  "status": "ACTIVE"
+}
+----
+
+The operation creates exactly one deposit collection transaction containing timestamp, amount, trigger, and loan reference. Domain conflicts return `409 Conflict`; no loan, item, member, reservation, or deposit state is changed.
+
+=== UC-03 Extend Loan
+
+`POST /loans/{loanId}/extension`
+
+Role: `Counter Clerk`.
+
+Request:
+
+[source,json]
+----
+{
+  "reason": "MEMBER_REQUEST"
+}
+----
+
+Input and validation:
+
+* The loan must exist and be active.
+* The loan must not already have an extension.
+* The loan must not be overdue on the current system date.
+* No open hold may exist for the loan's category.
+
+Successful response: `200 OK`.
+
+[source,json]
+----
+{
+  "loanId": "L-1001",
+  "previousReturnDeadline": "2026-09-07",
+  "returnDeadline": "2026-09-21",
+  "extended": true
+}
+----
+
+The operation writes an audit entry containing timestamp, actor, loan reference, previous deadline, new deadline, and trigger. Domain conflicts return `409 Conflict` and leave the loan unchanged.
+
+=== UC-04 Return Item
+
+`POST /loans/{loanId}/return`
+
+Role: `Counter Clerk`.
+
+Request:
+
+[source,json]
+----
+{
+  "returnedAt": "2026-09-01T10:15:00Z",
+  "irregularities": [
+    "CRACKED_HOUSING",
+    "MISSING_BATTERY_COVER"
+  ]
+}
+----
+
+Input and validation:
+
+* The loan must exist and be active.
+* The item must not already have a recorded return.
+* `returnedAt` must be a valid timestamp.
+* Irregularities are observations only; the request cannot contain a deposit deduction.
+
+Successful response: `202 Accepted`.
+
+[source,json]
+----
+{
+  "loanId": "L-1001",
+  "itemId": "I-204",
+  "returnedAt": "2026-09-01T10:15:00Z",
+  "itemStatus": "IN_INSPECTION",
+  "loanStatus": "AWAITING_INSPECTION"
+}
+----
+
+The operation records the return audit entry and changes the item to `IN_INSPECTION`. The loan remains open. Duplicate returns return `409 Conflict`.
+
+=== UC-05 Inspect Returned Item
+
+`POST /inspections`
+
+Role: `Workshop Technician`.
+
+Request:
+
+[source,json]
+----
+{
+  "loanId": "L-1001",
+  "outcome": "AVAILABLE",
+  "damage": [],
+  "deductionCents": 0,
+  "notes": "Inspected and complete"
+}
+----
+
+Allowed outcomes are `AVAILABLE`, `DUE_FOR_MAINTENANCE`, and `RETIRED`. A lost item uses `RETIRED` and retains the full collected deposit. `deductionCents` must be non-negative and no greater than the collected deposit.
+
+Successful response: `201 Created`.
+
+[source,json]
+----
+{
+  "inspectionReportId": "IR-7001",
+  "loanId": "L-1001",
+  "itemId": "I-204",
+  "loanStatus": "COMPLETED",
+  "itemStatus": "AVAILABLE",
+  "usageCounter": 4,
+  "deposit": {
+    "collectedCents": 5000,
+    "deductionCents": 0,
+    "releasedCents": 5000
+  }
+}
+----
+
+The operation closes the loan, increments the usage counter exactly once, creates the inspection report, writes the required deposit transaction or transactions, and applies hold allocation if the resulting item state is available. It also recalculates suspension for the member. A loan not awaiting inspection returns `409 Conflict`.
+
+=== UC-06 Create and Resolve Hold
+
+`POST /holds`
+
+Role: `Member`.
+
+Request:
+
+[source,json]
+----
+{
+  "memberId": "M-081",
+  "categoryId": "CAT-TOOLS"
+}
+----
+
+A hold is appended to the category queue with a server-generated receipt timestamp. A suspended member may create a hold. Successful response: `201 Created`.
+
+[source,json]
+----
+{
+  "holdId": "H-2001",
+  "memberId": "M-081",
+  "categoryId": "CAT-TOOLS",
+  "queuePosition": 3,
+  "status": "OPEN",
+  "receivedAt": "2026-08-24T11:00:00Z"
+}
+----
+
+`GET /categories/{categoryId}/holds` returns the ordered queue. Role: `Member` or `Counter Clerk`.
+
+`POST /reservations/allocate` resolves the next available item for a category. Role: `Counter Clerk` or `Workshop Technician`.
+
+`POST /reservations/expire` processes reservations whose three-calendar-day expiry has been reached. Role: `Counter Clerk` or `Workshop Technician`.
+
+Allocation skips a suspended member without deleting or reordering that member's hold. Maintenance-due items create no reservation. Successful allocation returns `201 Created`; there is no available item or eligible queue member: `204 No Content`. Expired or conflicting reservations return `409 Conflict` only when an explicit reservation cannot be resolved.
+
+=== UC-07 Maintenance and Recovery
+
+`POST /items/{itemId}/maintenance/complete`
+
+Role: `Workshop Technician`.
+
+Request:
+
+[source,json]
+----
+{
+  "completedAt": "2026-09-04T14:00:00Z",
+  "notes": "Safety inspection completed"
+}
+----
+
+Input and validation:
+
+* The item must exist and be `DUE_FOR_MAINTENANCE`.
+* The item must have no active loan and no inspection in progress.
+* `completedAt` must be a valid timestamp.
+
+Successful response: `200 OK`.
+
+[source,json]
+----
+{
+  "itemId": "I-204",
+  "itemStatus": "AVAILABLE",
+  "usageCounter": 0,
+  "completedAt": "2026-09-04T14:00:00Z"
+}
+----
+
+The operation resets the usage counter, changes the item to available, and writes an audit entry. An unrepairable item may instead be retired through `POST /items/{itemId}/retirement` with a technician role; retirement is irreversible. Invalid state transitions return `409 Conflict`.
+
+== Workshop CLI
+
+The executable name is `leihgut`. All commands require `--role workshop-technician` unless stated otherwise. CLI output is JSON on standard output. Validation and domain errors are written as the common error shape to standard error, and the process exits with status 1. Success exits with status 0.
+
+[cols="1,2,3"]
+|===
+|Command |Purpose |Success
+
+|`leihgut inspect list --role workshop-technician` |List returned items awaiting inspection |JSON array, exit 0
+|`leihgut inspect complete --loan <id> --outcome <outcome> --deduction-cents <amount> --role workshop-technician` |Create inspection report and close loan |Inspection report JSON, exit 0
+|`leihgut maintenance complete --item <id> --role workshop-technician` |Complete maintenance and restore availability |Updated item JSON, exit 0
+|`leihgut item retire --item <id> --reason <reason> --role workshop-technician` |Retire an unrepairable item |Updated item JSON, exit 0
+|`leihgut reservation expire --role workshop-technician` |Resolve expired reservations |JSON summary, exit 0
+|===
+
+The CLI commands have the same validation, state transitions, audit requirements, and atomicity as their REST equivalents. CLI options are rejected for missing required values, malformed identifiers, invalid dates, negative monetary amounts, and unsupported enum values.
+
+== Cross-interface invariants
+
+* An issue rejected through REST or CLI creates no loan and no deposit transaction.
+* A successful issue creates one deposit collection transaction with timestamp, amount, trigger, and loan reference.
+* A return changes the item to `IN_INSPECTION` but does not close the loan.
+* Inspection closes the loan exactly once and creates the corresponding deposit release, deduction, or retention record.
+* A deduction never exceeds the collected deposit.
+* A due-for-maintenance item cannot be issued or reserved.
+* A suspended member cannot borrow but retains their hold queue position.
+* All state-changing operations create audit entries sufficient to reconstruct the state transition.
